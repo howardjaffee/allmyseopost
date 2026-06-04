@@ -187,7 +187,7 @@ Return: {
       target_audience: data.audience,
       primary_keywords: data.primaryKeywords.split(",").map((s) => s.trim()),
       secondary_keywords: data.secondaryKeywords ? data.secondaryKeywords.split(",").map((s) => s.trim()) : [],
-      strategy: parsed.strategy ?? {},
+      strategy: (parsed.strategy ?? {}) as never,
     }).select().single();
     if (error) throw new Error(error.message);
 
