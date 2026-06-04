@@ -112,8 +112,8 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
         meta_description: String(parsed.metaDescription ?? ""),
         og_title: String(parsed.ogTitle ?? ""),
         og_description: String(parsed.ogDescription ?? ""),
-        outline: parsed.outline ?? [],
-        faq: parsed.faq ?? [],
+        outline: (parsed.outline ?? []) as never,
+        faq: (parsed.faq ?? []) as never,
         status: "draft",
       })
       .select()
@@ -187,7 +187,7 @@ Return: {
       target_audience: data.audience,
       primary_keywords: data.primaryKeywords.split(",").map((s) => s.trim()),
       secondary_keywords: data.secondaryKeywords ? data.secondaryKeywords.split(",").map((s) => s.trim()) : [],
-      strategy: parsed.strategy ?? {},
+      strategy: (parsed.strategy ?? {}) as never,
     }).select().single();
     if (error) throw new Error(error.message);
 
