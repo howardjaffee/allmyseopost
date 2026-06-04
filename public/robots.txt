@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /calendar
+Disallow: /generator
+Disallow: /sites
+Disallow: /quality
+Disallow: /history
+Disallow: /settings
+Disallow: /auth
