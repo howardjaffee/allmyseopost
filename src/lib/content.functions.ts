@@ -112,8 +112,8 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
         meta_description: String(parsed.metaDescription ?? ""),
         og_title: String(parsed.ogTitle ?? ""),
         og_description: String(parsed.ogDescription ?? ""),
-        outline: parsed.outline ?? [],
-        faq: parsed.faq ?? [],
+        outline: (parsed.outline ?? []) as never,
+        faq: (parsed.faq ?? []) as never,
         status: "draft",
       })
       .select()
