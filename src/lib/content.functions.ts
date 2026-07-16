@@ -297,8 +297,94 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       regenerated,
       belowThreshold,
       minQuality: data.minQuality,
+      attemptDiffs,
     };
   });
+
+type AttemptSummary = {
+  attempt: number;
+  overall: number;
+  tier: string;
+  title: string;
+  headings: string[];
+  faqs: { q: string; a: string }[];
+  ctas: string[];
+  tableCount: number;
+  internalLinks: { href: string; text: string }[];
+  weaknesses: string[];
+};
+
+type AttemptDiff = {
+  headings: { added: string[]; removed: string[] };
+  faqs: { added: string[]; removed: string[] };
+  ctas: { added: string[]; removed: string[] };
+  internalLinks: { added: string[]; removed: string[] };
+  tableCountDelta: number;
+  overallDelta: number;
+  titleChanged: boolean;
+};
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+function stripTags(s: string): string {
+  return decodeEntities(s.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+}
+function extractHeadings(html: string): string[] {
+  const out: string[] = [];
+  const re = /<h([23])[^>]*>([\s\S]*?)<\/h\1>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const text = stripTags(m[2]);
+    if (text) out.push(`H${m[1]}: ${text}`);
+  }
+  return out;
+}
+function countTables(html: string): number {
+  return (html.match(/<table[\s>]/gi) ?? []).length;
+}
+function extractInternalLinks(html: string): { href: string; text: string }[] {
+  const out: { href: string; text: string }[] = [];
+  const re = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    out.push({ href: m[1], text: stripTags(m[2]) });
+  }
+  return out;
+}
+function extractCtas(html: string): string[] {
+  const text = stripTags(html);
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const cues = /\b(click|download|subscribe|sign up|get started|try|book|contact|call|order|buy|learn more|read more|explore|discover|start|join)\b/i;
+  return sentences.filter((s) => cues.test(s) && s.length < 240).slice(0, 12);
+}
+function diffLists(prev: string[], cur: string[]): { added: string[]; removed: string[] } {
+  const p = new Set(prev.map((x) => x.toLowerCase()));
+  const c = new Set(cur.map((x) => x.toLowerCase()));
+  return {
+    added: cur.filter((x) => !p.has(x.toLowerCase())),
+    removed: prev.filter((x) => !c.has(x.toLowerCase())),
+  };
+}
+function diffAttempts(prev: AttemptSummary, cur: AttemptSummary): AttemptDiff {
+  return {
+    headings: diffLists(prev.headings, cur.headings),
+    faqs: diffLists(prev.faqs.map((f) => f.q), cur.faqs.map((f) => f.q)),
+    ctas: diffLists(prev.ctas, cur.ctas),
+    internalLinks: diffLists(prev.internalLinks.map((l) => l.href), cur.internalLinks.map((l) => l.href)),
+    tableCountDelta: cur.tableCount - prev.tableCount,
+    overallDelta: cur.overall - prev.overall,
+    titleChanged: prev.title !== cur.title,
+  };
+}
+
+
 
 
 export const generateContentPlan = createServerFn({ method: "POST" })
