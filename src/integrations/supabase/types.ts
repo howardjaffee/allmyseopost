@@ -439,6 +439,144 @@ export type Database = {
         }
         Relationships: []
       }
+      social_accounts: {
+        Row: {
+          connected_at: string
+          fb_page_id: string | null
+          fb_page_name: string | null
+          fb_page_token: string | null
+          fb_user_id: string | null
+          fb_user_token: string | null
+          id: string
+          ig_user_id: string | null
+          ig_username: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          fb_page_id?: string | null
+          fb_page_name?: string | null
+          fb_page_token?: string | null
+          fb_user_id?: string | null
+          fb_user_token?: string | null
+          id?: string
+          ig_user_id?: string | null
+          ig_username?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          fb_page_id?: string | null
+          fb_page_name?: string | null
+          fb_page_token?: string | null
+          fb_user_id?: string | null
+          fb_user_token?: string | null
+          id?: string
+          ig_user_id?: string | null
+          ig_username?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      social_post_log: {
+        Row: {
+          caption: string | null
+          created_at: string
+          error: string | null
+          external_id: string | null
+          id: string
+          image_url: string | null
+          platform: string
+          status: string
+          topic: string | null
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          error?: string | null
+          external_id?: string | null
+          id?: string
+          image_url?: string | null
+          platform: string
+          status: string
+          topic?: string | null
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          error?: string | null
+          external_id?: string | null
+          id?: string
+          image_url?: string | null
+          platform?: string
+          status?: string
+          topic?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      social_schedules: {
+        Row: {
+          audience: string
+          created_at: string
+          cta: string
+          enabled: boolean
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          last_status: string | null
+          next_topic_index: number
+          platforms: Json
+          post_time_utc: string
+          tone: string
+          topics: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audience?: string
+          created_at?: string
+          cta?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          next_topic_index?: number
+          platforms?: Json
+          post_time_utc?: string
+          tone?: string
+          topics?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          cta?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          next_topic_index?: number
+          platforms?: Json
+          post_time_utc?: string
+          tone?: string
+          topics?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
