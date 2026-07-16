@@ -215,7 +215,7 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       recommendations: score.recommendations,
     });
 
-    return { articleId: article.id, overall, tier };
+    return { articleId: article.id, overall, tier, published: !!wpPostId, wpPostId, featuredImageUrl, publishError };
   });
 
 export const generateContentPlan = createServerFn({ method: "POST" })
