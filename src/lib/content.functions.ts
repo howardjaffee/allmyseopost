@@ -202,6 +202,24 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       ]);
     }
 
+    // Extract inline image placeholders from the article and generate images for them.
+    // Placeholders look like: [[IMAGE: description]]. Cap count for safety.
+    const inlinePromptRe = /\[\[IMAGE:\s*([^\]]+)\]\]/gi;
+    const inlinePrompts: string[] = [];
+    let pm: RegExpExecArray | null;
+    while ((pm = inlinePromptRe.exec(contentHtml)) && inlinePrompts.length < Math.min(data.inlineImageCount, 6)) {
+      inlinePrompts.push(pm[1].trim());
+    }
+    let inlineImages: Array<{ base64: string; mimeType: string; alt: string; url?: string } | null> = [];
+    if (inlinePrompts.length) {
+      inlineImages = await Promise.all(
+        inlinePrompts.map(async (p) => {
+          const img = await generateInlineImage(`${p}. Context: ${data.primaryKeyword}`);
+          return img ? { ...img, alt: p.slice(0, 120) } : null;
+        }),
+      );
+    }
+
     // Optional: upload image + publish to WordPress in one shot
     let wpMediaId: number | undefined;
     let featuredImageUrl: string | null = null;
@@ -232,10 +250,40 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
             contentHtml = `<figure><img src="${featuredImageUrl}" alt="${imageMeta.altText.replace(/"/g, "&quot;")}" /><figcaption>${imageMeta.caption.replace(/</g, "&lt;")}</figcaption></figure>\n${contentHtml}`;
           }
         }
+        // Upload inline images to WP media library and replace placeholders with hosted URLs.
+        for (let i = 0; i < inlineImages.length; i++) {
+          const img = inlineImages[i];
+          if (!img) continue;
+          try {
+            const up = await uploadImageToWordPress(site, {
+              base64: img.base64,
+              mimeType: img.mimeType,
+              filename: `${parsed.slug}-inline-${i + 1}.png`,
+              altText: img.alt,
+              title: img.alt,
+              caption: img.alt,
+              description: img.alt,
+            });
+            if (up.source_url) img.url = up.source_url;
+          } catch { /* keep placeholder as data URL fallback */ }
+        }
       } catch (e) {
         publishError = `Image upload failed: ${e instanceof Error ? e.message : String(e)}`;
       }
     }
+
+    // Replace [[IMAGE: ...]] placeholders in-order with <figure><img> using WP URL or data URL.
+    if (inlinePrompts.length) {
+      let idx = 0;
+      contentHtml = contentHtml.replace(/\[\[IMAGE:\s*[^\]]+\]\]/gi, () => {
+        const img = inlineImages[idx++];
+        if (!img) return "";
+        const src = img.url || `data:${img.mimeType};base64,${img.base64}`;
+        const alt = img.alt.replace(/"/g, "&quot;");
+        return `<figure><img src="${src}" alt="${alt}" loading="lazy" /><figcaption>${alt.replace(/</g, "&lt;")}</figcaption></figure>`;
+      });
+    }
+
 
     const { data: article, error } = await supabase
       .from("articles")
