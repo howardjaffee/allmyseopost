@@ -1,22 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-async function callAI(body: unknown) {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY missing");
-  const res = await fetch(GATEWAY, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 429) throw new Error("Rate limited. Try again shortly.");
-  if (res.status === 402) throw new Error("AI credits exhausted. Add credits to your workspace.");
-  if (!res.ok) throw new Error(`AI error ${res.status}: ${await res.text()}`);
-  return res.json();
-}
+import {
+  addRelatedLinks,
+  callContentModel,
+  normalizeArticleDraft,
+  normalizePlanDraft,
+  normalizeQualityScore,
+  parseJsonResponse,
+  scoreLocally,
+  splitKeywords,
+  type ArticleDraft,
+  type ContentPlanDraft,
+  type QualityScore,
+} from "./ai-content.server";
 
 export const generateArticle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -57,32 +54,52 @@ Return JSON with this exact shape:
   "faq": [{"q": string, "a": string}]
 }`;
 
-    const aiRes = await callAI({
+    const aiText = await callContentModel({
       model: "google/gemini-3-flash-preview",
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       response_format: { type: "json_object" },
     });
 
-    const text = aiRes.choices?.[0]?.message?.content ?? "{}";
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(text); } catch { throw new Error("AI returned invalid JSON"); }
+    const parsed = normalizeArticleDraft(parseJsonResponse<Partial<ArticleDraft>>(aiText), data.primaryKeyword);
+
+    let contentHtml = parsed.contentHtml;
+    if (data.siteId) {
+      const { data: site } = await supabase.from("sites").select("url").eq("id", data.siteId).single();
+      const { data: relatedArticles } = await supabase
+        .from("articles")
+        .select("title,slug")
+        .eq("site_id", data.siteId)
+        .eq("status", "published")
+        .not("slug", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      const siteUrl = site?.url ? site.url.replace(/\/$/, "") : "";
+      const related = (relatedArticles ?? [])
+        .filter((item) => item.slug)
+        .map((item) => ({ title: item.title, url: `${siteUrl}/${item.slug}` }));
+      contentHtml = addRelatedLinks(contentHtml, related);
+    }
 
     // Score the article
     const scoreSystem = `You are a strict SEO content quality grader. Output ONLY JSON.`;
     const scoreUser = `Grade this article on the 100-point Seowidpnkj scale.
 Categories (max points): seo(25), readability(20), eeat(20), originality(15), keyword_coverage(10), structure(5), grammar(5).
 Primary keyword: ${data.primaryKeyword}
-Article HTML: ${(parsed.contentHtml as string ?? "").slice(0, 8000)}
+Article HTML: ${contentHtml.slice(0, 8000)}
 
 Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"structure":n,"grammar":n,"strengths":string[],"weaknesses":string[],"recommendations":string[]}`;
 
-    const scoreRes = await callAI({
-      model: "google/gemini-3-flash-preview",
-      messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
-      response_format: { type: "json_object" },
-    });
-    const scoreText = scoreRes.choices?.[0]?.message?.content ?? "{}";
-    const score = JSON.parse(scoreText) as Record<string, number | string[]>;
+    let score: QualityScore;
+    try {
+      const scoreText = await callContentModel({
+        model: "google/gemini-3-flash-preview",
+        messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
+        response_format: { type: "json_object" },
+      });
+      score = normalizeQualityScore(parseJsonResponse<Partial<QualityScore>>(scoreText), contentHtml, data.primaryKeyword);
+    } catch {
+      score = scoreLocally(contentHtml, data.primaryKeyword);
+    }
 
     const overall =
       (Number(score.seo) || 0) +
@@ -99,21 +116,21 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       .insert({
         user_id: userId,
         site_id: data.siteId ?? null,
-        title: String(parsed.title ?? data.primaryKeyword),
-        slug: String(parsed.slug ?? ""),
+        title: parsed.title,
+        slug: parsed.slug,
         primary_keyword: data.primaryKeyword,
-        secondary_keywords: data.secondaryKeywords ? data.secondaryKeywords.split(",").map((s) => s.trim()) : [],
+        secondary_keywords: splitKeywords(data.secondaryKeywords),
         tone: data.tone,
         word_count: data.wordCount,
         target_country: data.targetCountry,
         search_intent: data.searchIntent,
-        content_html: String(parsed.contentHtml ?? ""),
-        meta_title: String(parsed.metaTitle ?? ""),
-        meta_description: String(parsed.metaDescription ?? ""),
-        og_title: String(parsed.ogTitle ?? ""),
-        og_description: String(parsed.ogDescription ?? ""),
-        outline: (parsed.outline ?? []) as never,
-        faq: (parsed.faq ?? []) as never,
+        content_html: contentHtml,
+        meta_title: parsed.metaTitle,
+        meta_description: parsed.metaDescription,
+        og_title: parsed.ogTitle,
+        og_description: parsed.ogDescription,
+        outline: parsed.outline,
+        faq: parsed.faq,
         status: "draft",
       })
       .select()
@@ -132,9 +149,9 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       structure: Number(score.structure) || 0,
       grammar: Number(score.grammar) || 0,
       tier,
-      strengths: (score.strengths as string[]) ?? [],
-      weaknesses: (score.weaknesses as string[]) ?? [],
-      recommendations: (score.recommendations as string[]) ?? [],
+      strengths: score.strengths,
+      weaknesses: score.weaknesses,
+      recommendations: score.recommendations,
     });
 
     return { articleId: article.id, overall, tier };
@@ -168,14 +185,12 @@ Return: {
   "strategy": { "pillars": string[], "frequency": string, "internalLinkingStrategy": string },
   "items": [{ "day": 1, "topic": string, "primaryKeyword": string, "searchIntent": string, "cluster": string }, ... up to ${data.durationDays}]
 }`;
-    const ai = await callAI({
+    const aiText = await callContentModel({
       model: "google/gemini-3-flash-preview",
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       response_format: { type: "json_object" },
     });
-    const parsed = JSON.parse(ai.choices?.[0]?.message?.content ?? "{}") as {
-      strategy?: unknown; items?: Array<{ day: number; topic: string; primaryKeyword?: string; searchIntent?: string; cluster?: string }>;
-    };
+    const parsed = normalizePlanDraft(parseJsonResponse<Partial<ContentPlanDraft>>(aiText), data.durationDays, splitKeywords(data.primaryKeywords)[0] ?? data.niche);
 
     const { data: plan, error } = await supabase.from("content_plans").insert({
       user_id: userId,
@@ -185,13 +200,13 @@ Return: {
       niche: data.niche,
       target_country: data.targetCountry,
       target_audience: data.audience,
-      primary_keywords: data.primaryKeywords.split(",").map((s) => s.trim()),
-      secondary_keywords: data.secondaryKeywords ? data.secondaryKeywords.split(",").map((s) => s.trim()) : [],
-      strategy: (parsed.strategy ?? {}) as never,
+      primary_keywords: splitKeywords(data.primaryKeywords),
+      secondary_keywords: splitKeywords(data.secondaryKeywords),
+      strategy: parsed.strategy,
     }).select().single();
     if (error) throw new Error(error.message);
 
-    const items = (parsed.items ?? []).slice(0, data.durationDays);
+    const items = parsed.items.slice(0, data.durationDays);
     if (items.length) {
       const today = new Date();
       const rows = items.map((it) => {

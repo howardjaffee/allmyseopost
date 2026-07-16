@@ -24,6 +24,12 @@ function GeneratorPage() {
     targetCountry: "United States",
     audience: "general readers",
     searchIntent: "informational",
+    siteId: null as string | null,
+  });
+
+  const sites = useQuery({
+    queryKey: ["generator-sites"],
+    queryFn: async () => (await supabase.from("sites").select("id,name").order("created_at", { ascending: false })).data ?? [],
   });
 
   const recent = useQuery({
@@ -54,6 +60,12 @@ function GeneratorPage() {
           </Field>
           <Field label="Secondary keywords (comma-separated)">
             <input value={form.secondaryKeywords} onChange={(e) => setForm({ ...form, secondaryKeywords: e.target.value })} placeholder="luxury hotels, budget stays, hill station resorts" className={input} />
+          </Field>
+          <Field label="WordPress site">
+            <select value={form.siteId ?? ""} onChange={(e) => setForm({ ...form, siteId: e.target.value || null })} className={input}>
+              <option value="">No site / draft only</option>
+              {(sites.data ?? []).map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+            </select>
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Tone"><select value={form.tone} onChange={(e) => setForm({ ...form, tone: e.target.value })} className={input}>
