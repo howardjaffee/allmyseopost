@@ -51,7 +51,7 @@ function HistoryPage() {
       <div className="px-8 pb-12 grid lg:grid-cols-3 gap-4">
         <div className="glass rounded-2xl p-4 space-y-1 max-h-[70vh] overflow-y-auto">
           {(list.data ?? []).map((a) => (
-            <button key={a.id} onClick={() => setSelected(a.id)} className={`w-full text-left rounded-lg p-3 ${selected === a.id ? "bg-brand-soft" : "hover:bg-secondary/40"}`}>
+            <button key={a.id} onClick={() => { setSelected(a.id); setSelectedSiteId(""); }} className={`w-full text-left rounded-lg p-3 ${selected === a.id ? "bg-brand-soft" : "hover:bg-secondary/40"}`}>
               <div className="text-sm font-medium line-clamp-1">{a.title}</div>
               <div className="text-xs text-muted-foreground mt-1">{a.primary_keyword} · {a.word_count} words · {a.status}</div>
             </button>
