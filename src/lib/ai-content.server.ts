@@ -1,7 +1,7 @@
 import type { Json } from "@/integrations/supabase/types";
 
 const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 type ChatBody = { model: string; messages: ChatMessage[]; response_format?: { type: "json_object" }; temperature?: number };

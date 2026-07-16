@@ -24,10 +24,6 @@ export async function publishPostToWordPress(article: Article, site: Site) {
       content: article.content_html || "",
       excerpt: article.meta_description || undefined,
       status: "publish",
-      meta: {
-        _seowidpnkj_meta_title: article.meta_title || article.title,
-        _seowidpnkj_meta_description: article.meta_description || "",
-      },
     }),
   });
 
