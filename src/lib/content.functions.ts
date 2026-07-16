@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 import {
   addRelatedLinks,
   callContentModel,
+  generateFeaturedImage,
   normalizeArticleDraft,
   normalizePlanDraft,
   normalizeQualityScore,
@@ -14,6 +16,7 @@ import {
   type ContentPlanDraft,
   type QualityScore,
 } from "./ai-content.server";
+import { publishPostToWordPress, uploadImageToWordPress } from "./wordpress.server";
 
 export const generateArticle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -27,6 +30,8 @@ export const generateArticle = createServerFn({ method: "POST" })
       audience: z.string().max(200).default("general readers"),
       searchIntent: z.string().max(80).default("informational"),
       siteId: z.string().uuid().optional().nullable(),
+      autoPublish: z.boolean().optional().default(false),
+      includeImage: z.boolean().optional().default(true),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -111,6 +116,44 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       (Number(score.grammar) || 0);
     const tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
 
+    // Generate featured image (best-effort)
+    let featuredImage: { base64: string; mimeType: string } | null = null;
+    if (data.includeImage) {
+      featuredImage = await generateFeaturedImage(`${parsed.title}. ${data.primaryKeyword}`);
+    }
+
+    // Optional: upload image + publish to WordPress in one shot
+    let wpMediaId: number | undefined;
+    let featuredImageUrl: string | null = null;
+    let wpPostId: number | null = null;
+    let publishedAt: string | null = null;
+    let publishError: string | null = null;
+    let site: Database["public"]["Tables"]["sites"]["Row"] | null = null;
+
+    if (data.autoPublish && data.siteId) {
+      const { data: siteRow, error: siteErr } = await supabase
+        .from("sites").select("*").eq("id", data.siteId).single();
+      if (siteErr || !siteRow) throw new Error(siteErr?.message || "Site not found");
+      site = siteRow;
+      try {
+        if (featuredImage) {
+          const uploaded = await uploadImageToWordPress(site, {
+            base64: featuredImage.base64,
+            mimeType: featuredImage.mimeType,
+            filename: `${parsed.slug}.png`,
+            altText: parsed.title,
+          });
+          wpMediaId = uploaded.id;
+          featuredImageUrl = uploaded.source_url || null;
+          if (featuredImageUrl && !/<img\s/i.test(contentHtml)) {
+            contentHtml = `<figure><img src="${featuredImageUrl}" alt="${parsed.title.replace(/"/g, "&quot;")}" /></figure>\n${contentHtml}`;
+          }
+        }
+      } catch (e) {
+        publishError = `Image upload failed: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+
     const { data: article, error } = await supabase
       .from("articles")
       .insert({
@@ -131,11 +174,29 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
         og_description: parsed.ogDescription,
         outline: parsed.outline,
         faq: parsed.faq,
+        featured_image_url: featuredImageUrl,
         status: "draft",
       })
       .select()
       .single();
     if (error) throw new Error(error.message);
+
+    if (data.autoPublish && site) {
+      try {
+        const published = await publishPostToWordPress(article, site, { featuredMediaId: wpMediaId });
+        wpPostId = published.id;
+        publishedAt = new Date().toISOString();
+        await supabase.from("articles").update({
+          status: "published",
+          wp_post_id: wpPostId,
+          published_at: publishedAt,
+          error: null,
+        }).eq("id", article.id);
+      } catch (e) {
+        publishError = `Publish failed: ${e instanceof Error ? e.message : String(e)}`;
+        await supabase.from("articles").update({ error: publishError }).eq("id", article.id);
+      }
+    }
 
     await supabase.from("quality_scores").insert({
       article_id: article.id,
@@ -154,7 +215,7 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       recommendations: score.recommendations,
     });
 
-    return { articleId: article.id, overall, tier };
+    return { articleId: article.id, overall, tier, published: !!wpPostId, wpPostId, featuredImageUrl, publishError };
   });
 
 export const generateContentPlan = createServerFn({ method: "POST" })

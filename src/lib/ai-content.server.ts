@@ -1,7 +1,31 @@
 import type { Json } from "@/integrations/supabase/types";
 
 const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_IMAGE_GATEWAY = "https://ai.gateway.lovable.dev/v1/images/generations";
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
+
+export async function generateFeaturedImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(LOVABLE_IMAGE_GATEWAY, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: `Create a high-quality, photorealistic blog featured image (16:9) for an article about: ${prompt}. No text overlay.` }],
+        modalities: ["image", "text"],
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const b64 = json?.data?.[0]?.b64_json;
+    if (!b64) return null;
+    return { base64: b64, mimeType: "image/png" };
+  } catch {
+    return null;
+  }
+}
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 type ChatBody = { model: string; messages: ChatMessage[]; response_format?: { type: "json_object" }; temperature?: number };
