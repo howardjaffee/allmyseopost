@@ -519,3 +519,66 @@ Return: {
 
     return { planId: plan.id, itemCount: items.length };
   });
+
+// ---------------- Social media post generator ----------------
+export const generateSocialPost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      topic: z.string().min(2).max(300),
+      platform: z.enum(["instagram", "facebook", "both"]).default("both"),
+      tone: z.string().max(50).default("engaging"),
+      audience: z.string().max(200).default("general audience"),
+      includeImage: z.boolean().optional().default(true),
+      cta: z.string().max(200).optional().default(""),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const platforms: Array<"instagram" | "facebook"> =
+      data.platform === "both" ? ["instagram", "facebook"] : [data.platform];
+
+    const system = `You are a viral social media copywriter. Output ONLY JSON.`;
+    const user = `Write scroll-stopping ${platforms.join(" and ")} post(s) about: ${data.topic}
+Tone: ${data.tone}
+Audience: ${data.audience}
+${data.cta ? `Call-to-action goal: ${data.cta}` : ""}
+
+Return JSON:
+{
+  "posts": [
+    {
+      "platform": "instagram" | "facebook",
+      "caption": string (Instagram: hook first line + 3-6 short paragraphs with line breaks + CTA. Facebook: 1-3 punchy paragraphs. Use tasteful emojis.),
+      "hashtags": string[] (Instagram: 15-25 mixed popularity, no # symbol. Facebook: 3-8, no # symbol.),
+      "imagePrompt": string (a vivid one-sentence visual description for an eye-catching image)
+    }
+  ]
+}`;
+
+    const aiText = await callContentModel({
+      model: "google/gemini-3-flash-preview",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_object" },
+    });
+    const parsed = parseJsonResponse<{ posts?: Array<{ platform?: string; caption?: string; hashtags?: string[]; imagePrompt?: string }> }>(aiText);
+    const rawPosts = Array.isArray(parsed.posts) ? parsed.posts : [];
+
+    const posts = await Promise.all(
+      platforms.map(async (platform) => {
+        const match = rawPosts.find((p) => p.platform === platform) ?? rawPosts[0] ?? {};
+        const caption = String(match.caption ?? "").trim() || data.topic;
+        const hashtags = Array.isArray(match.hashtags)
+          ? match.hashtags.map((h) => String(h).replace(/^#/, "").trim()).filter(Boolean).slice(0, 30)
+          : [];
+        const imagePrompt = String(match.imagePrompt ?? data.topic);
+        let imageDataUrl: string | null = null;
+        if (data.includeImage) {
+          const img = await generateSocialImage(imagePrompt, platform);
+          if (img) imageDataUrl = `data:${img.mimeType};base64,${img.base64}`;
+        }
+        return { platform, caption, hashtags, imagePrompt, imageDataUrl };
+      }),
+    );
+
+    return { posts };
+  });
