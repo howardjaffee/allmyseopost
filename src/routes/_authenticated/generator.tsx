@@ -41,9 +41,11 @@ function GeneratorPage() {
   });
 
   const mut = useMutation({
-    mutationFn: () => gen({ data: form }),
+    mutationFn: (opts: { autoPublish: boolean }) => gen({ data: { ...form, autoPublish: opts.autoPublish, includeImage: true } }),
     onSuccess: (res) => {
-      toast.success(`Article generated! Quality: ${res.overall}/100 (Tier ${res.tier})`);
+      if (res.published) toast.success(`Published to WordPress! Quality ${res.overall}/100 (Tier ${res.tier})`);
+      else if (res.publishError) toast.error(res.publishError);
+      else toast.success(`Article generated! Quality: ${res.overall}/100 (Tier ${res.tier})`);
       qc.invalidateQueries({ queryKey: ["recentArticles"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
     },
