@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, Calendar, Wand2, Globe2, Gauge, History, Settings, LogOut, Sparkles } from "lucide-react";
+import { LayoutDashboard, Calendar, Wand2, Globe2, Gauge, History, Settings, LogOut, Sparkles, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -17,6 +17,7 @@ const NAV = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/calendar", label: "Content Calendar", icon: Calendar },
   { to: "/generator", label: "Generator", icon: Wand2 },
+  { to: "/social", label: "Social Posts", icon: Share2 },
   { to: "/sites", label: "Sites", icon: Globe2 },
   { to: "/quality", label: "Quality", icon: Gauge },
   { to: "/history", label: "History", icon: History },

@@ -6,6 +6,8 @@ import {
   addRelatedLinks,
   callContentModel,
   generateFeaturedImage,
+  generateInlineImage,
+  generateSocialImage,
   generateImageMetadata,
   normalizeArticleDraft,
   normalizePlanDraft,
@@ -34,6 +36,8 @@ export const generateArticle = createServerFn({ method: "POST" })
       siteId: z.string().uuid().optional().nullable(),
       autoPublish: z.boolean().optional().default(false),
       includeImage: z.boolean().optional().default(true),
+      includeToc: z.boolean().optional().default(true),
+      inlineImageCount: z.number().int().min(0).max(6).optional().default(2),
       minQuality: z.number().int().min(0).max(100).optional().default(75),
       maxAttempts: z.number().int().min(1).max(5).optional().default(3),
     }).parse(input),
@@ -41,7 +45,7 @@ export const generateArticle = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const system = `You are an elite SEO content writer. Produce EEAT-optimized, human-like articles with clear structure: H1, intro, H2 sections with H3 subsections, bullet lists, tables where useful, FAQ, and a CTA. Output strictly valid JSON.`;
+    const system = `You are an elite SEO content writer. Produce EEAT-optimized, human-like articles with clear structure: H1, engaging intro, ${data.includeToc ? "a Table of Contents (unordered list of anchor links to each H2)," : ""} H2 sections with H3 subsections, numbered step-by-step instructions where appropriate, bullet lists, tables where useful, FAQ, and a CTA. Output strictly valid JSON.`;
     const buildUserPrompt = (attempt: number, prevWeaknesses: string[]) => `Write a ~${data.wordCount}-word SEO article.
 Primary keyword: ${data.primaryKeyword}
 Secondary keywords: ${data.secondaryKeywords || "(infer)"}
@@ -49,7 +53,16 @@ Tone: ${data.tone}
 Target country: ${data.targetCountry}
 Audience: ${data.audience}
 Search intent: ${data.searchIntent}
-${attempt > 1 && prevWeaknesses.length ? `\nPREVIOUS ATTEMPT FELL BELOW QUALITY THRESHOLD. Fix these weaknesses:\n- ${prevWeaknesses.slice(0, 8).join("\n- ")}\nAim for stronger EEAT signals, richer structure, and complete keyword coverage.\n` : ""}
+
+STRUCTURE REQUIREMENTS (must all be present in contentHtml):
+1. <h1> with the article title.
+2. Short 2-3 sentence intro paragraph.
+${data.includeToc ? '3. A Table of Contents: <nav class="toc"><h2>Table of Contents</h2><ol><li><a href="#section-slug">Section Name</a></li>...</ol></nav>. Every H2 section MUST have a matching id attribute.\n' : ""}4. 5-8 H2 sections (each with id="section-slug"). Where the topic involves a process, include a numbered <ol> "step-by-step" list inside that section.
+5. At least one comparison <table> if useful.
+6. An FAQ section as <h2 id="faq">FAQ</h2> followed by <h3> question / <p> answer pairs.
+7. A closing CTA paragraph.
+${data.inlineImageCount > 0 ? `8. Insert EXACTLY ${data.inlineImageCount} inline image placeholders spread across the article using this literal syntax on its own line: [[IMAGE: short vivid visual description of what to depict]]. Do NOT write <img> tags yourself.\n` : ""}
+${attempt > 1 && prevWeaknesses.length ? `\nPREVIOUS ATTEMPT FELL BELOW QUALITY THRESHOLD. Fix these weaknesses:\n- ${prevWeaknesses.slice(0, 8).join("\n- ")}\n` : ""}
 Return JSON with this exact shape:
 
 {
@@ -60,7 +73,7 @@ Return JSON with this exact shape:
   "ogTitle": string,
   "ogDescription": string,
   "outline": [{"heading": string, "subheadings": string[]}],
-  "contentHtml": string (full HTML with <h1>,<h2>,<h3>,<p>,<ul>,<ol>,<table>),
+  "contentHtml": string (full HTML meeting ALL structure requirements above),
   "faq": [{"q": string, "a": string}]
 }`;
 
@@ -189,6 +202,24 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       ]);
     }
 
+    // Extract inline image placeholders from the article and generate images for them.
+    // Placeholders look like: [[IMAGE: description]]. Cap count for safety.
+    const inlinePromptRe = /\[\[IMAGE:\s*([^\]]+)\]\]/gi;
+    const inlinePrompts: string[] = [];
+    let pm: RegExpExecArray | null;
+    while ((pm = inlinePromptRe.exec(contentHtml)) && inlinePrompts.length < Math.min(data.inlineImageCount, 6)) {
+      inlinePrompts.push(pm[1].trim());
+    }
+    let inlineImages: Array<{ base64: string; mimeType: string; alt: string; url?: string } | null> = [];
+    if (inlinePrompts.length) {
+      inlineImages = await Promise.all(
+        inlinePrompts.map(async (p) => {
+          const img = await generateInlineImage(`${p}. Context: ${data.primaryKeyword}`);
+          return img ? { ...img, alt: p.slice(0, 120) } : null;
+        }),
+      );
+    }
+
     // Optional: upload image + publish to WordPress in one shot
     let wpMediaId: number | undefined;
     let featuredImageUrl: string | null = null;
@@ -219,10 +250,40 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
             contentHtml = `<figure><img src="${featuredImageUrl}" alt="${imageMeta.altText.replace(/"/g, "&quot;")}" /><figcaption>${imageMeta.caption.replace(/</g, "&lt;")}</figcaption></figure>\n${contentHtml}`;
           }
         }
+        // Upload inline images to WP media library and replace placeholders with hosted URLs.
+        for (let i = 0; i < inlineImages.length; i++) {
+          const img = inlineImages[i];
+          if (!img) continue;
+          try {
+            const up = await uploadImageToWordPress(site, {
+              base64: img.base64,
+              mimeType: img.mimeType,
+              filename: `${parsed.slug}-inline-${i + 1}.png`,
+              altText: img.alt,
+              title: img.alt,
+              caption: img.alt,
+              description: img.alt,
+            });
+            if (up.source_url) img.url = up.source_url;
+          } catch { /* keep placeholder as data URL fallback */ }
+        }
       } catch (e) {
         publishError = `Image upload failed: ${e instanceof Error ? e.message : String(e)}`;
       }
     }
+
+    // Replace [[IMAGE: ...]] placeholders in-order with <figure><img> using WP URL or data URL.
+    if (inlinePrompts.length) {
+      let idx = 0;
+      contentHtml = contentHtml.replace(/\[\[IMAGE:\s*[^\]]+\]\]/gi, () => {
+        const img = inlineImages[idx++];
+        if (!img) return "";
+        const src = img.url || `data:${img.mimeType};base64,${img.base64}`;
+        const alt = img.alt.replace(/"/g, "&quot;");
+        return `<figure><img src="${src}" alt="${alt}" loading="lazy" /><figcaption>${alt.replace(/</g, "&lt;")}</figcaption></figure>`;
+      });
+    }
+
 
     const { data: article, error } = await supabase
       .from("articles")
@@ -457,4 +518,67 @@ Return: {
     }
 
     return { planId: plan.id, itemCount: items.length };
+  });
+
+// ---------------- Social media post generator ----------------
+export const generateSocialPost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      topic: z.string().min(2).max(300),
+      platform: z.enum(["instagram", "facebook", "both"]).default("both"),
+      tone: z.string().max(50).default("engaging"),
+      audience: z.string().max(200).default("general audience"),
+      includeImage: z.boolean().optional().default(true),
+      cta: z.string().max(200).optional().default(""),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const platforms: Array<"instagram" | "facebook"> =
+      data.platform === "both" ? ["instagram", "facebook"] : [data.platform];
+
+    const system = `You are a viral social media copywriter. Output ONLY JSON.`;
+    const user = `Write scroll-stopping ${platforms.join(" and ")} post(s) about: ${data.topic}
+Tone: ${data.tone}
+Audience: ${data.audience}
+${data.cta ? `Call-to-action goal: ${data.cta}` : ""}
+
+Return JSON:
+{
+  "posts": [
+    {
+      "platform": "instagram" | "facebook",
+      "caption": string (Instagram: hook first line + 3-6 short paragraphs with line breaks + CTA. Facebook: 1-3 punchy paragraphs. Use tasteful emojis.),
+      "hashtags": string[] (Instagram: 15-25 mixed popularity, no # symbol. Facebook: 3-8, no # symbol.),
+      "imagePrompt": string (a vivid one-sentence visual description for an eye-catching image)
+    }
+  ]
+}`;
+
+    const aiText = await callContentModel({
+      model: "google/gemini-3-flash-preview",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_object" },
+    });
+    const parsed = parseJsonResponse<{ posts?: Array<{ platform?: string; caption?: string; hashtags?: string[]; imagePrompt?: string }> }>(aiText);
+    const rawPosts = Array.isArray(parsed.posts) ? parsed.posts : [];
+
+    const posts = await Promise.all(
+      platforms.map(async (platform) => {
+        const match = rawPosts.find((p) => p.platform === platform) ?? rawPosts[0] ?? {};
+        const caption = String(match.caption ?? "").trim() || data.topic;
+        const hashtags = Array.isArray(match.hashtags)
+          ? match.hashtags.map((h) => String(h).replace(/^#/, "").trim()).filter(Boolean).slice(0, 30)
+          : [];
+        const imagePrompt = String(match.imagePrompt ?? data.topic);
+        let imageDataUrl: string | null = null;
+        if (data.includeImage) {
+          const img = await generateSocialImage(imagePrompt, platform);
+          if (img) imageDataUrl = `data:${img.mimeType};base64,${img.base64}`;
+        }
+        return { platform, caption, hashtags, imagePrompt, imageDataUrl };
+      }),
+    );
+
+    return { posts };
   });
