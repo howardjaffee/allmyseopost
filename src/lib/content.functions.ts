@@ -73,6 +73,7 @@ Return JSON with this exact shape:
     let attempts = 0;
     let best: { parsed: ArticleDraft; contentHtml: string; score: QualityScore; overall: number; tier: string } | null = null;
     let prevWeaknesses: string[] = [];
+    const attemptSummaries: AttemptSummary[] = [];
 
     for (let attempt = 1; attempt <= data.maxAttempts; attempt++) {
       attempts = attempt;
