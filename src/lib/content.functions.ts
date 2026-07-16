@@ -34,21 +34,24 @@ export const generateArticle = createServerFn({ method: "POST" })
       siteId: z.string().uuid().optional().nullable(),
       autoPublish: z.boolean().optional().default(false),
       includeImage: z.boolean().optional().default(true),
+      minQuality: z.number().int().min(0).max(100).optional().default(75),
+      maxAttempts: z.number().int().min(1).max(5).optional().default(3),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
     const system = `You are an elite SEO content writer. Produce EEAT-optimized, human-like articles with clear structure: H1, intro, H2 sections with H3 subsections, bullet lists, tables where useful, FAQ, and a CTA. Output strictly valid JSON.`;
-    const user = `Write a ~${data.wordCount}-word SEO article.
+    const buildUserPrompt = (attempt: number, prevWeaknesses: string[]) => `Write a ~${data.wordCount}-word SEO article.
 Primary keyword: ${data.primaryKeyword}
 Secondary keywords: ${data.secondaryKeywords || "(infer)"}
 Tone: ${data.tone}
 Target country: ${data.targetCountry}
 Audience: ${data.audience}
 Search intent: ${data.searchIntent}
-
+${attempt > 1 && prevWeaknesses.length ? `\nPREVIOUS ATTEMPT FELL BELOW QUALITY THRESHOLD. Fix these weaknesses:\n- ${prevWeaknesses.slice(0, 8).join("\n- ")}\nAim for stronger EEAT signals, richer structure, and complete keyword coverage.\n` : ""}
 Return JSON with this exact shape:
+
 {
   "title": string,
   "slug": string,
