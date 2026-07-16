@@ -17,6 +17,7 @@ const NAV = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/calendar", label: "Content Calendar", icon: Calendar },
   { to: "/generator", label: "Generator", icon: Wand2 },
+  { to: "/social", label: "Social Posts", icon: Share2 },
   { to: "/sites", label: "Sites", icon: Globe2 },
   { to: "/quality", label: "Quality", icon: Gauge },
   { to: "/history", label: "History", icon: History },
