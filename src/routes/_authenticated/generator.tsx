@@ -56,7 +56,7 @@ function GeneratorPage() {
     <div>
       <PageHeader title="Article Generator" subtitle="EEAT-optimized SEO content with built-in quality scoring." />
       <div className="px-8 pb-12 grid lg:grid-cols-3 gap-6">
-        <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="lg:col-span-2 glass rounded-2xl p-6 space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); mut.mutate({ autoPublish: false }); }} className="lg:col-span-2 glass rounded-2xl p-6 space-y-4">
           <Field label="Primary keyword *">
             <input required value={form.primaryKeyword} onChange={(e) => setForm({ ...form, primaryKeyword: e.target.value })} placeholder="best hotels in dalhousie" className={input} />
           </Field>
