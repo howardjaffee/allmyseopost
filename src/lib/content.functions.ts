@@ -6,6 +6,7 @@ import {
   addRelatedLinks,
   callContentModel,
   generateFeaturedImage,
+  generateImageMetadata,
   normalizeArticleDraft,
   normalizePlanDraft,
   normalizeQualityScore,
@@ -14,6 +15,7 @@ import {
   splitKeywords,
   type ArticleDraft,
   type ContentPlanDraft,
+  type ImageMetadata,
   type QualityScore,
 } from "./ai-content.server";
 import { publishPostToWordPress, uploadImageToWordPress } from "./wordpress.server";
@@ -116,10 +118,19 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       (Number(score.grammar) || 0);
     const tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
 
-    // Generate featured image (best-effort)
+    // Generate featured image (best-effort) + SEO metadata
     let featuredImage: { base64: string; mimeType: string } | null = null;
+    let imageMeta: ImageMetadata | null = null;
     if (data.includeImage) {
-      featuredImage = await generateFeaturedImage(`${parsed.title}. ${data.primaryKeyword}`);
+      [featuredImage, imageMeta] = await Promise.all([
+        generateFeaturedImage(`${parsed.title}. ${data.primaryKeyword}`),
+        generateImageMetadata({
+          articleTitle: parsed.title,
+          primaryKeyword: data.primaryKeyword,
+          metaDescription: parsed.metaDescription,
+          slug: parsed.slug,
+        }),
+      ]);
     }
 
     // Optional: upload image + publish to WordPress in one shot
@@ -136,17 +147,20 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       if (siteErr || !siteRow) throw new Error(siteErr?.message || "Site not found");
       site = siteRow;
       try {
-        if (featuredImage) {
+        if (featuredImage && imageMeta) {
           const uploaded = await uploadImageToWordPress(site, {
             base64: featuredImage.base64,
             mimeType: featuredImage.mimeType,
-            filename: `${parsed.slug}.png`,
-            altText: parsed.title,
+            filename: imageMeta.filename,
+            altText: imageMeta.altText,
+            title: imageMeta.title,
+            caption: imageMeta.caption,
+            description: imageMeta.description,
           });
           wpMediaId = uploaded.id;
           featuredImageUrl = uploaded.source_url || null;
           if (featuredImageUrl && !/<img\s/i.test(contentHtml)) {
-            contentHtml = `<figure><img src="${featuredImageUrl}" alt="${parsed.title.replace(/"/g, "&quot;")}" /></figure>\n${contentHtml}`;
+            contentHtml = `<figure><img src="${featuredImageUrl}" alt="${imageMeta.altText.replace(/"/g, "&quot;")}" /><figcaption>${imageMeta.caption.replace(/</g, "&lt;")}</figcaption></figure>\n${contentHtml}`;
           }
         }
       } catch (e) {

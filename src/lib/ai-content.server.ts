@@ -27,6 +27,56 @@ export async function generateFeaturedImage(prompt: string): Promise<{ base64: s
   }
 }
 
+export type ImageMetadata = {
+  altText: string;
+  title: string;
+  caption: string;
+  description: string;
+  filename: string;
+};
+
+export async function generateImageMetadata(input: {
+  articleTitle: string;
+  primaryKeyword: string;
+  metaDescription: string;
+  slug: string;
+}): Promise<ImageMetadata> {
+  const fallback: ImageMetadata = {
+    altText: clampText(`${input.articleTitle} — ${input.primaryKeyword}`.replace(/\s+/g, " ").trim(), 125),
+    title: clampText(input.articleTitle, 100),
+    caption: clampText(input.metaDescription || input.articleTitle, 150),
+    description: clampText(input.metaDescription || input.articleTitle, 300),
+    filename: `${slugify(input.slug || input.primaryKeyword || input.articleTitle)}.png`,
+  };
+  try {
+    const text = await callContentModel({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: "You write SEO-friendly image metadata. Output only JSON." },
+        {
+          role: "user",
+          content: `Article title: ${input.articleTitle}
+Primary keyword: ${input.primaryKeyword}
+Meta description: ${input.metaDescription}
+
+Return JSON: {"altText": string (<=125 chars, descriptive, includes primary keyword naturally, no "image of"), "title": string (<=100 chars), "caption": string (<=150 chars), "description": string (<=300 chars), "filenameSlug": string (kebab-case, <=60 chars, no extension)}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const parsed = parseJsonResponse<Partial<ImageMetadata & { filenameSlug: string }>>(text);
+    return {
+      altText: clampText(cleanText(parsed.altText) || fallback.altText, 125),
+      title: clampText(cleanText(parsed.title) || fallback.title, 100),
+      caption: clampText(cleanText(parsed.caption) || fallback.caption, 150),
+      description: clampText(cleanText(parsed.description) || fallback.description, 300),
+      filename: `${slugify(cleanText(parsed.filenameSlug) || input.slug || input.primaryKeyword)}.png`,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 type ChatBody = { model: string; messages: ChatMessage[]; response_format?: { type: "json_object" }; temperature?: number };
 
