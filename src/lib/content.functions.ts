@@ -6,6 +6,7 @@ import {
   addRelatedLinks,
   callContentModel,
   generateFeaturedImage,
+  generateImageMetadata,
   normalizeArticleDraft,
   normalizePlanDraft,
   normalizeQualityScore,
@@ -14,6 +15,7 @@ import {
   splitKeywords,
   type ArticleDraft,
   type ContentPlanDraft,
+  type ImageMetadata,
   type QualityScore,
 } from "./ai-content.server";
 import { publishPostToWordPress, uploadImageToWordPress } from "./wordpress.server";
