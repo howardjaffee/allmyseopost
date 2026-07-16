@@ -28,6 +28,8 @@ function GeneratorPage() {
     siteId: null as string | null,
     minQuality: 75,
     maxAttempts: 3,
+    includeToc: true,
+    inlineImageCount: 2,
   });
 
   const sites = useQuery({
