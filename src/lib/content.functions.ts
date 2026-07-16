@@ -142,7 +142,7 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
         tier,
         title: parsed.title,
         headings: extractHeadings(contentHtml),
-        faqs: (parsed.faq ?? []).map((f) => ({ q: f.q, a: f.a })),
+        faqs: ((parsed.faq ?? []) as Array<{ q?: string; a?: string }>).map((f) => ({ q: String(f?.q ?? ""), a: String(f?.a ?? "") })),
         ctas: extractCtas(contentHtml),
         tableCount: countTables(contentHtml),
         internalLinks: extractInternalLinks(contentHtml),
