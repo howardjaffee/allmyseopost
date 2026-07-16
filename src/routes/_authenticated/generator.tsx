@@ -25,6 +25,8 @@ function GeneratorPage() {
     audience: "general readers",
     searchIntent: "informational",
     siteId: null as string | null,
+    minQuality: 75,
+    maxAttempts: 3,
   });
 
   const sites = useQuery({
@@ -43,14 +45,22 @@ function GeneratorPage() {
   const mut = useMutation({
     mutationFn: (opts: { autoPublish: boolean }) => gen({ data: { ...form, autoPublish: opts.autoPublish, includeImage: true } }),
     onSuccess: (res) => {
-      if (res.published) toast.success(`Published to WordPress! Quality ${res.overall}/100 (Tier ${res.tier})`);
-      else if (res.publishError) toast.error(res.publishError);
-      else toast.success(`Article generated! Quality: ${res.overall}/100 (Tier ${res.tier})`);
+      const attemptNote = res.regenerated ? ` after ${res.attempts} attempts` : "";
+      if (res.belowThreshold) {
+        toast.warning(`Best score ${res.overall}/100 still below ${res.minQuality} threshold${attemptNote}. Saved best draft.`);
+      } else if (res.published) {
+        toast.success(`Published to WordPress! Quality ${res.overall}/100 (Tier ${res.tier})${attemptNote}`);
+      } else if (res.publishError) {
+        toast.error(res.publishError);
+      } else {
+        toast.success(`Article generated! Quality: ${res.overall}/100 (Tier ${res.tier})${attemptNote}`);
+      }
       qc.invalidateQueries({ queryKey: ["recentArticles"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Generation failed"),
   });
+
 
   return (
     <div>
