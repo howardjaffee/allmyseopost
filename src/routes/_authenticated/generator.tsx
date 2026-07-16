@@ -46,6 +46,7 @@ function GeneratorPage() {
   const mut = useMutation({
     mutationFn: (opts: { autoPublish: boolean }) => gen({ data: { ...form, autoPublish: opts.autoPublish, includeImage: true } }),
     onSuccess: (res) => {
+      setLastRun(res);
       const attemptNote = res.regenerated ? ` after ${res.attempts} attempts` : "";
       if (res.belowThreshold) {
         toast.warning(`Best score ${res.overall}/100 still below ${res.minQuality} threshold${attemptNote}. Saved best draft.`);
