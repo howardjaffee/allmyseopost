@@ -82,10 +82,15 @@ function GeneratorPage() {
           <Field label="Target audience">
             <input value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} className={input} />
           </Field>
-          <button disabled={mut.isPending} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand py-3 font-medium text-primary-foreground shadow-glow disabled:opacity-60">
-            {mut.isPending ? <><Loader2 className="size-4 animate-spin" /> Generating & scoring…</> : <><Wand2 className="size-4" /> Generate article</>}
-          </button>
-          <p className="text-xs text-muted-foreground">Powered by Lovable AI. Article + quality score are saved to your library.</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <button type="submit" disabled={mut.isPending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary/40 py-3 font-medium disabled:opacity-60">
+              {mut.isPending ? <><Loader2 className="size-4 animate-spin" /> Working…</> : <><Wand2 className="size-4" /> Generate draft</>}
+            </button>
+            <button type="button" disabled={mut.isPending || !form.siteId} onClick={() => mut.mutate({ autoPublish: true })} className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand py-3 font-medium text-primary-foreground shadow-glow disabled:opacity-60">
+              {mut.isPending ? <><Loader2 className="size-4 animate-spin" /> Publishing…</> : <><Rocket className="size-4" /> Generate + Publish to WordPress</>}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">One-click generates article + featured image and publishes to your selected WordPress site. Select a site to enable publishing.</p>
         </form>
 
         <div className="glass rounded-2xl p-6">
