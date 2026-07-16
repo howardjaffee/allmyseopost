@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Wand2, Sparkles } from "lucide-react";
+import { Loader2, Wand2, Sparkles, Rocket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateArticle } from "@/lib/content.functions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
