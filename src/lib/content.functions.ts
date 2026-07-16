@@ -136,12 +136,31 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
         (Number(score.grammar) || 0);
       tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
 
+      attemptSummaries.push({
+        attempt,
+        overall,
+        tier,
+        title: parsed.title,
+        headings: extractHeadings(contentHtml),
+        faqs: (parsed.faq ?? []).map((f) => ({ q: f.q, a: f.a })),
+        ctas: extractCtas(contentHtml),
+        tableCount: countTables(contentHtml),
+        internalLinks: extractInternalLinks(contentHtml),
+        weaknesses: score.weaknesses ?? [],
+      });
+
       if (!best || overall > best.overall) {
         best = { parsed, contentHtml, score, overall, tier };
       }
       if (overall >= data.minQuality) break;
       prevWeaknesses = score.weaknesses ?? [];
     }
+
+    const attemptDiffs = attemptSummaries.map((cur, i) => {
+      const prev = i > 0 ? attemptSummaries[i - 1] : null;
+      return { current: cur, diff: prev ? diffAttempts(prev, cur) : null };
+    });
+
 
     // Keep the best-scoring attempt (may equal the last one).
     if (best) {
