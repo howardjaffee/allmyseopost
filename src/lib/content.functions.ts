@@ -6,6 +6,8 @@ import {
   addRelatedLinks,
   callContentModel,
   generateFeaturedImage,
+  generateInlineImage,
+  generateSocialImage,
   generateImageMetadata,
   normalizeArticleDraft,
   normalizePlanDraft,
