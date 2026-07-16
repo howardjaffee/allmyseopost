@@ -29,6 +29,8 @@ export const generateArticle = createServerFn({ method: "POST" })
       audience: z.string().max(200).default("general readers"),
       searchIntent: z.string().max(80).default("informational"),
       siteId: z.string().uuid().optional().nullable(),
+      autoPublish: z.boolean().optional().default(false),
+      includeImage: z.boolean().optional().default(true),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
