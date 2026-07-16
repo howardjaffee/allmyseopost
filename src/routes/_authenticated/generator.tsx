@@ -106,6 +106,18 @@ function GeneratorPage() {
               </select>
             </Field>
           </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Inline images in article">
+              <select value={form.inlineImageCount} onChange={(e) => setForm({ ...form, inlineImageCount: Number(e.target.value) })} className={input}>
+                {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} image{n === 1 ? "" : "s"}</option>)}
+              </select>
+            </Field>
+            <Field label="Table of contents">
+              <label className="flex items-center gap-2 h-[42px] px-3 rounded-lg bg-input/40 border border-border text-sm">
+                <input type="checkbox" checked={form.includeToc} onChange={(e) => setForm({ ...form, includeToc: e.target.checked })} /> Auto-insert TOC with anchor links
+              </label>
+            </Field>
+          </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <button type="submit" disabled={mut.isPending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary/40 py-3 font-medium disabled:opacity-60">
