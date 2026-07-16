@@ -92,6 +92,17 @@ function GeneratorPage() {
           <Field label="Target audience">
             <input value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} className={input} />
           </Field>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label={`Min quality score (${form.minQuality}/100)`}>
+              <input type="range" min={50} max={95} step={5} value={form.minQuality} onChange={(e) => setForm({ ...form, minQuality: Number(e.target.value) })} className="w-full" />
+            </Field>
+            <Field label="Max regeneration attempts">
+              <select value={form.maxAttempts} onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })} className={input}>
+                {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </Field>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-3">
             <button type="submit" disabled={mut.isPending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary/40 py-3 font-medium disabled:opacity-60">
               {mut.isPending ? <><Loader2 className="size-4 animate-spin" /> Working…</> : <><Wand2 className="size-4" /> Generate draft</>}
