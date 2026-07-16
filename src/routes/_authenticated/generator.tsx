@@ -135,9 +135,83 @@ function GeneratorPage() {
           </div>
         </div>
       </div>
+      {lastRun?.attemptDiffs && lastRun.attemptDiffs.length > 1 && (
+        <div className="px-8 pb-12">
+          <AttemptComparison diffs={lastRun.attemptDiffs} />
+        </div>
+      )}
     </div>
   );
 }
+
+type AttemptDiffsProp = NonNullable<Awaited<ReturnType<typeof generateArticle>>["attemptDiffs"]>;
+
+function AttemptComparison({ diffs }: { diffs: AttemptDiffsProp }) {
+  return (
+    <div className="glass rounded-2xl p-6">
+      <h3 className="font-semibold flex items-center gap-2"><Sparkles className="size-4 text-accent" /> Regeneration comparison</h3>
+      <p className="mt-1 text-xs text-muted-foreground">What changed between attempts — headings, FAQs, CTAs, tables and internal links.</p>
+      <div className="mt-5 space-y-5">
+        {diffs.map(({ current, diff }) => (
+          <div key={current.attempt} className="rounded-xl border border-border/60 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-medium">
+                Attempt {current.attempt}
+                {diff?.titleChanged && <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] uppercase tracking-wide">title updated</span>}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-secondary/50 px-2 py-0.5">{current.overall}/100 · {current.tier}</span>
+                {diff && (
+                  <span className={`rounded-full px-2 py-0.5 ${diff.overallDelta >= 0 ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
+                    {diff.overallDelta >= 0 ? "+" : ""}{diff.overallDelta} vs prev
+                  </span>
+                )}
+                <span className="rounded-full bg-secondary/50 px-2 py-0.5">tables: {current.tableCount}{diff && diff.tableCountDelta !== 0 ? ` (${diff.tableCountDelta > 0 ? "+" : ""}${diff.tableCountDelta})` : ""}</span>
+              </div>
+            </div>
+            <div className="mt-1 truncate text-xs text-muted-foreground">{current.title}</div>
+
+            {!diff ? (
+              <p className="mt-3 text-xs text-muted-foreground">Baseline attempt — no previous version to compare against.</p>
+            ) : (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <DiffBlock label="Headings" added={diff.headings.added} removed={diff.headings.removed} />
+                <DiffBlock label="FAQs" added={diff.faqs.added} removed={diff.faqs.removed} />
+                <DiffBlock label="CTAs" added={diff.ctas.added} removed={diff.ctas.removed} />
+                <DiffBlock label="Internal links" added={diff.internalLinks.added} removed={diff.internalLinks.removed} mono />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DiffBlock({ label, added, removed, mono }: { label: string; added: string[]; removed: string[]; mono?: boolean }) {
+  const empty = added.length === 0 && removed.length === 0;
+  return (
+    <div className="rounded-lg border border-border/40 bg-secondary/20 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium">{label}</span>
+        <span className="text-[10px] text-muted-foreground">+{added.length} / −{removed.length}</span>
+      </div>
+      {empty ? (
+        <p className="text-[11px] text-muted-foreground">No changes</p>
+      ) : (
+        <ul className={`space-y-1 text-[11px] ${mono ? "font-mono" : ""}`}>
+          {added.map((t, i) => (
+            <li key={`a-${i}`} className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-200"><span className="mr-1">+</span>{t}</li>
+          ))}
+          {removed.map((t, i) => (
+            <li key={`r-${i}`} className="rounded bg-rose-500/10 px-2 py-1 text-rose-200 line-through"><span className="mr-1 no-underline">−</span>{t}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 
 const input = "w-full rounded-lg bg-input/40 border border-border px-3 py-2.5 text-sm outline-none focus:border-primary";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
