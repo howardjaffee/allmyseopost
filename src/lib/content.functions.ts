@@ -64,62 +64,95 @@ Return JSON with this exact shape:
   "faq": [{"q": string, "a": string}]
 }`;
 
-    const aiText = await callContentModel({
-      model: "google/gemini-3-flash-preview",
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      response_format: { type: "json_object" },
-    });
+    // Generation + scoring loop — auto-regenerate when below quality threshold.
+    let parsed!: ArticleDraft;
+    let contentHtml = "";
+    let score!: QualityScore;
+    let overall = 0;
+    let tier = "E";
+    let attempts = 0;
+    let best: { parsed: ArticleDraft; contentHtml: string; score: QualityScore; overall: number; tier: string } | null = null;
+    let prevWeaknesses: string[] = [];
 
-    const parsed = normalizeArticleDraft(parseJsonResponse<Partial<ArticleDraft>>(aiText), data.primaryKeyword);
+    for (let attempt = 1; attempt <= data.maxAttempts; attempt++) {
+      attempts = attempt;
+      const aiText = await callContentModel({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: buildUserPrompt(attempt, prevWeaknesses) },
+        ],
+        response_format: { type: "json_object" },
+      });
 
-    let contentHtml = parsed.contentHtml;
-    if (data.siteId) {
-      const { data: site } = await supabase.from("sites").select("url").eq("id", data.siteId).single();
-      const { data: relatedArticles } = await supabase
-        .from("articles")
-        .select("title,slug")
-        .eq("site_id", data.siteId)
-        .eq("status", "published")
-        .not("slug", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      const siteUrl = site?.url ? site.url.replace(/\/$/, "") : "";
-      const related = (relatedArticles ?? [])
-        .filter((item) => item.slug)
-        .map((item) => ({ title: item.title, url: `${siteUrl}/${item.slug}` }));
-      contentHtml = addRelatedLinks(contentHtml, related);
-    }
+      parsed = normalizeArticleDraft(parseJsonResponse<Partial<ArticleDraft>>(aiText), data.primaryKeyword);
+      contentHtml = parsed.contentHtml;
 
-    // Score the article
-    const scoreSystem = `You are a strict SEO content quality grader. Output ONLY JSON.`;
-    const scoreUser = `Grade this article on the 100-point Seowidpnkj scale.
+      if (data.siteId) {
+        const { data: site } = await supabase.from("sites").select("url").eq("id", data.siteId).single();
+        const { data: relatedArticles } = await supabase
+          .from("articles")
+          .select("title,slug")
+          .eq("site_id", data.siteId)
+          .eq("status", "published")
+          .not("slug", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        const siteUrl = site?.url ? site.url.replace(/\/$/, "") : "";
+        const related = (relatedArticles ?? [])
+          .filter((item) => item.slug)
+          .map((item) => ({ title: item.title, url: `${siteUrl}/${item.slug}` }));
+        contentHtml = addRelatedLinks(contentHtml, related);
+      }
+
+      // Score
+      const scoreSystem = `You are a strict SEO content quality grader. Output ONLY JSON.`;
+      const scoreUser = `Grade this article on the 100-point Seowidpnkj scale.
 Categories (max points): seo(25), readability(20), eeat(20), originality(15), keyword_coverage(10), structure(5), grammar(5).
 Primary keyword: ${data.primaryKeyword}
 Article HTML: ${contentHtml.slice(0, 8000)}
 
 Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"structure":n,"grammar":n,"strengths":string[],"weaknesses":string[],"recommendations":string[]}`;
 
-    let score: QualityScore;
-    try {
-      const scoreText = await callContentModel({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
-        response_format: { type: "json_object" },
-      });
-      score = normalizeQualityScore(parseJsonResponse<Partial<QualityScore>>(scoreText), contentHtml, data.primaryKeyword);
-    } catch {
-      score = scoreLocally(contentHtml, data.primaryKeyword);
+      try {
+        const scoreText = await callContentModel({
+          model: "google/gemini-3-flash-preview",
+          messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
+          response_format: { type: "json_object" },
+        });
+        score = normalizeQualityScore(parseJsonResponse<Partial<QualityScore>>(scoreText), contentHtml, data.primaryKeyword);
+      } catch {
+        score = scoreLocally(contentHtml, data.primaryKeyword);
+      }
+
+      overall =
+        (Number(score.seo) || 0) +
+        (Number(score.readability) || 0) +
+        (Number(score.eeat) || 0) +
+        (Number(score.originality) || 0) +
+        (Number(score.keyword_coverage) || 0) +
+        (Number(score.structure) || 0) +
+        (Number(score.grammar) || 0);
+      tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
+
+      if (!best || overall > best.overall) {
+        best = { parsed, contentHtml, score, overall, tier };
+      }
+      if (overall >= data.minQuality) break;
+      prevWeaknesses = score.weaknesses ?? [];
     }
 
-    const overall =
-      (Number(score.seo) || 0) +
-      (Number(score.readability) || 0) +
-      (Number(score.eeat) || 0) +
-      (Number(score.originality) || 0) +
-      (Number(score.keyword_coverage) || 0) +
-      (Number(score.structure) || 0) +
-      (Number(score.grammar) || 0);
-    const tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
+    // Keep the best-scoring attempt (may equal the last one).
+    if (best) {
+      parsed = best.parsed;
+      contentHtml = best.contentHtml;
+      score = best.score;
+      overall = best.overall;
+      tier = best.tier;
+    }
+    const regenerated = attempts > 1;
+    const belowThreshold = overall < data.minQuality;
+
 
     // Generate featured image (best-effort) + SEO metadata
     let featuredImage: { base64: string; mimeType: string } | null = null;
