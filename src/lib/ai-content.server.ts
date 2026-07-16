@@ -5,6 +5,19 @@ const LOVABLE_IMAGE_GATEWAY = "https://ai.gateway.lovable.dev/v1/images/generati
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
 
 export async function generateFeaturedImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  return generateImage(`High-quality, photorealistic blog featured image (16:9) for an article about: ${prompt}. No text overlay, no watermark.`);
+}
+
+export async function generateInlineImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  return generateImage(`Editorial, photorealistic blog inline image illustrating: ${prompt}. Clean composition, natural lighting, no text overlay, no watermark.`);
+}
+
+export async function generateSocialImage(prompt: string, platform: "instagram" | "facebook"): Promise<{ base64: string; mimeType: string } | null> {
+  const ratio = platform === "instagram" ? "square 1:1" : "landscape 1.91:1";
+  return generateImage(`Scroll-stopping ${platform} post image, ${ratio} aspect, vibrant, high-contrast, editorial photography style. Subject: ${prompt}. No text overlay, no watermark.`);
+}
+
+async function generateImage(fullPrompt: string): Promise<{ base64: string; mimeType: string } | null> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return null;
   try {
@@ -13,7 +26,7 @@ export async function generateFeaturedImage(prompt: string): Promise<{ base64: s
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: `Create a high-quality, photorealistic blog featured image (16:9) for an article about: ${prompt}. No text overlay.` }],
+        messages: [{ role: "user", content: fullPrompt }],
         modalities: ["image", "text"],
       }),
     });
