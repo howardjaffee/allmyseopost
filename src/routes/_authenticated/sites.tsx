@@ -18,7 +18,7 @@ function SitesPage() {
 
   const sites = useQuery({
     queryKey: ["sites"],
-    queryFn: async () => (await supabase.from("sites").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: async () => (await supabase.from("sites").select("id,name,url,niche,target_country,wp_connected,created_at").order("created_at", { ascending: false })).data ?? [],
   });
 
   const add = useMutation({
