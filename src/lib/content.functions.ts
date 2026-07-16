@@ -34,21 +34,24 @@ export const generateArticle = createServerFn({ method: "POST" })
       siteId: z.string().uuid().optional().nullable(),
       autoPublish: z.boolean().optional().default(false),
       includeImage: z.boolean().optional().default(true),
+      minQuality: z.number().int().min(0).max(100).optional().default(75),
+      maxAttempts: z.number().int().min(1).max(5).optional().default(3),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
     const system = `You are an elite SEO content writer. Produce EEAT-optimized, human-like articles with clear structure: H1, intro, H2 sections with H3 subsections, bullet lists, tables where useful, FAQ, and a CTA. Output strictly valid JSON.`;
-    const user = `Write a ~${data.wordCount}-word SEO article.
+    const buildUserPrompt = (attempt: number, prevWeaknesses: string[]) => `Write a ~${data.wordCount}-word SEO article.
 Primary keyword: ${data.primaryKeyword}
 Secondary keywords: ${data.secondaryKeywords || "(infer)"}
 Tone: ${data.tone}
 Target country: ${data.targetCountry}
 Audience: ${data.audience}
 Search intent: ${data.searchIntent}
-
+${attempt > 1 && prevWeaknesses.length ? `\nPREVIOUS ATTEMPT FELL BELOW QUALITY THRESHOLD. Fix these weaknesses:\n- ${prevWeaknesses.slice(0, 8).join("\n- ")}\nAim for stronger EEAT signals, richer structure, and complete keyword coverage.\n` : ""}
 Return JSON with this exact shape:
+
 {
   "title": string,
   "slug": string,
@@ -61,62 +64,95 @@ Return JSON with this exact shape:
   "faq": [{"q": string, "a": string}]
 }`;
 
-    const aiText = await callContentModel({
-      model: "google/gemini-3-flash-preview",
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      response_format: { type: "json_object" },
-    });
+    // Generation + scoring loop — auto-regenerate when below quality threshold.
+    let parsed!: ArticleDraft;
+    let contentHtml = "";
+    let score!: QualityScore;
+    let overall = 0;
+    let tier = "E";
+    let attempts = 0;
+    let best: { parsed: ArticleDraft; contentHtml: string; score: QualityScore; overall: number; tier: string } | null = null;
+    let prevWeaknesses: string[] = [];
 
-    const parsed = normalizeArticleDraft(parseJsonResponse<Partial<ArticleDraft>>(aiText), data.primaryKeyword);
+    for (let attempt = 1; attempt <= data.maxAttempts; attempt++) {
+      attempts = attempt;
+      const aiText = await callContentModel({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: buildUserPrompt(attempt, prevWeaknesses) },
+        ],
+        response_format: { type: "json_object" },
+      });
 
-    let contentHtml = parsed.contentHtml;
-    if (data.siteId) {
-      const { data: site } = await supabase.from("sites").select("url").eq("id", data.siteId).single();
-      const { data: relatedArticles } = await supabase
-        .from("articles")
-        .select("title,slug")
-        .eq("site_id", data.siteId)
-        .eq("status", "published")
-        .not("slug", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      const siteUrl = site?.url ? site.url.replace(/\/$/, "") : "";
-      const related = (relatedArticles ?? [])
-        .filter((item) => item.slug)
-        .map((item) => ({ title: item.title, url: `${siteUrl}/${item.slug}` }));
-      contentHtml = addRelatedLinks(contentHtml, related);
-    }
+      parsed = normalizeArticleDraft(parseJsonResponse<Partial<ArticleDraft>>(aiText), data.primaryKeyword);
+      contentHtml = parsed.contentHtml;
 
-    // Score the article
-    const scoreSystem = `You are a strict SEO content quality grader. Output ONLY JSON.`;
-    const scoreUser = `Grade this article on the 100-point Seowidpnkj scale.
+      if (data.siteId) {
+        const { data: site } = await supabase.from("sites").select("url").eq("id", data.siteId).single();
+        const { data: relatedArticles } = await supabase
+          .from("articles")
+          .select("title,slug")
+          .eq("site_id", data.siteId)
+          .eq("status", "published")
+          .not("slug", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        const siteUrl = site?.url ? site.url.replace(/\/$/, "") : "";
+        const related = (relatedArticles ?? [])
+          .filter((item) => item.slug)
+          .map((item) => ({ title: item.title, url: `${siteUrl}/${item.slug}` }));
+        contentHtml = addRelatedLinks(contentHtml, related);
+      }
+
+      // Score
+      const scoreSystem = `You are a strict SEO content quality grader. Output ONLY JSON.`;
+      const scoreUser = `Grade this article on the 100-point Seowidpnkj scale.
 Categories (max points): seo(25), readability(20), eeat(20), originality(15), keyword_coverage(10), structure(5), grammar(5).
 Primary keyword: ${data.primaryKeyword}
 Article HTML: ${contentHtml.slice(0, 8000)}
 
 Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"structure":n,"grammar":n,"strengths":string[],"weaknesses":string[],"recommendations":string[]}`;
 
-    let score: QualityScore;
-    try {
-      const scoreText = await callContentModel({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
-        response_format: { type: "json_object" },
-      });
-      score = normalizeQualityScore(parseJsonResponse<Partial<QualityScore>>(scoreText), contentHtml, data.primaryKeyword);
-    } catch {
-      score = scoreLocally(contentHtml, data.primaryKeyword);
+      try {
+        const scoreText = await callContentModel({
+          model: "google/gemini-3-flash-preview",
+          messages: [{ role: "system", content: scoreSystem }, { role: "user", content: scoreUser }],
+          response_format: { type: "json_object" },
+        });
+        score = normalizeQualityScore(parseJsonResponse<Partial<QualityScore>>(scoreText), contentHtml, data.primaryKeyword);
+      } catch {
+        score = scoreLocally(contentHtml, data.primaryKeyword);
+      }
+
+      overall =
+        (Number(score.seo) || 0) +
+        (Number(score.readability) || 0) +
+        (Number(score.eeat) || 0) +
+        (Number(score.originality) || 0) +
+        (Number(score.keyword_coverage) || 0) +
+        (Number(score.structure) || 0) +
+        (Number(score.grammar) || 0);
+      tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
+
+      if (!best || overall > best.overall) {
+        best = { parsed, contentHtml, score, overall, tier };
+      }
+      if (overall >= data.minQuality) break;
+      prevWeaknesses = score.weaknesses ?? [];
     }
 
-    const overall =
-      (Number(score.seo) || 0) +
-      (Number(score.readability) || 0) +
-      (Number(score.eeat) || 0) +
-      (Number(score.originality) || 0) +
-      (Number(score.keyword_coverage) || 0) +
-      (Number(score.structure) || 0) +
-      (Number(score.grammar) || 0);
-    const tier = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "E";
+    // Keep the best-scoring attempt (may equal the last one).
+    if (best) {
+      parsed = best.parsed;
+      contentHtml = best.contentHtml;
+      score = best.score;
+      overall = best.overall;
+      tier = best.tier;
+    }
+    const regenerated = attempts > 1;
+    const belowThreshold = overall < data.minQuality;
+
 
     // Generate featured image (best-effort) + SEO metadata
     let featuredImage: { base64: string; mimeType: string } | null = null;
@@ -229,8 +265,21 @@ Return: {"seo":n,"readability":n,"eeat":n,"originality":n,"keyword_coverage":n,"
       recommendations: score.recommendations,
     });
 
-    return { articleId: article.id, overall, tier, published: !!wpPostId, wpPostId, featuredImageUrl, publishError };
+    return {
+      articleId: article.id,
+      overall,
+      tier,
+      published: !!wpPostId,
+      wpPostId,
+      featuredImageUrl,
+      publishError,
+      attempts,
+      regenerated,
+      belowThreshold,
+      minQuality: data.minQuality,
+    };
   });
+
 
 export const generateContentPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
