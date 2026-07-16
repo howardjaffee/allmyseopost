@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/generator")({
 function GeneratorPage() {
   const qc = useQueryClient();
   const gen = useServerFn(generateArticle);
+  const [lastRun, setLastRun] = useState<Awaited<ReturnType<typeof generateArticle>> | null>(null);
   const [form, setForm] = useState({
     primaryKeyword: "",
     secondaryKeywords: "",
