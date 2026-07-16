@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSocialScheduleRouteImport } from './routes/_authenticated/social-schedule'
 import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -20,6 +21,8 @@ import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedGeneratorRouteImport } from './routes/_authenticated/generator'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as ApiPublicMetaCallbackRouteImport } from './routes/api/public/meta/callback'
+import { Route as ApiPublicHooksSocialAutopostRouteImport } from './routes/api/public/hooks/social-autopost'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -35,6 +38,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSocialScheduleRoute =
+  AuthenticatedSocialScheduleRouteImport.update({
+    id: '/social-schedule',
+    path: '/social-schedule',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
   id: '/social',
   path: '/social',
@@ -75,6 +84,17 @@ const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicMetaCallbackRoute = ApiPublicMetaCallbackRouteImport.update({
+  id: '/api/public/meta/callback',
+  path: '/api/public/meta/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksSocialAutopostRoute =
+  ApiPublicHooksSocialAutopostRouteImport.update({
+    id: '/api/public/hooks/social-autopost',
+    path: '/api/public/hooks/social-autopost',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +107,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/sites': typeof AuthenticatedSitesRoute
   '/social': typeof AuthenticatedSocialRoute
+  '/social-schedule': typeof AuthenticatedSocialScheduleRoute
+  '/api/public/hooks/social-autopost': typeof ApiPublicHooksSocialAutopostRoute
+  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +122,9 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/sites': typeof AuthenticatedSitesRoute
   '/social': typeof AuthenticatedSocialRoute
+  '/social-schedule': typeof AuthenticatedSocialScheduleRoute
+  '/api/public/hooks/social-autopost': typeof ApiPublicHooksSocialAutopostRoute
+  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +139,9 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/sites': typeof AuthenticatedSitesRoute
   '/_authenticated/social': typeof AuthenticatedSocialRoute
+  '/_authenticated/social-schedule': typeof AuthenticatedSocialScheduleRoute
+  '/api/public/hooks/social-autopost': typeof ApiPublicHooksSocialAutopostRoute
+  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +156,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sites'
     | '/social'
+    | '/social-schedule'
+    | '/api/public/hooks/social-autopost'
+    | '/api/public/meta/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +171,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sites'
     | '/social'
+    | '/social-schedule'
+    | '/api/public/hooks/social-autopost'
+    | '/api/public/meta/callback'
   id:
     | '__root__'
     | '/'
@@ -152,12 +187,17 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/sites'
     | '/_authenticated/social'
+    | '/_authenticated/social-schedule'
+    | '/api/public/hooks/social-autopost'
+    | '/api/public/meta/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicHooksSocialAutopostRoute: typeof ApiPublicHooksSocialAutopostRoute
+  ApiPublicMetaCallbackRoute: typeof ApiPublicMetaCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -182,6 +222,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/social-schedule': {
+      id: '/_authenticated/social-schedule'
+      path: '/social-schedule'
+      fullPath: '/social-schedule'
+      preLoaderRoute: typeof AuthenticatedSocialScheduleRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/social': {
       id: '/_authenticated/social'
@@ -239,6 +286,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/meta/callback': {
+      id: '/api/public/meta/callback'
+      path: '/api/public/meta/callback'
+      fullPath: '/api/public/meta/callback'
+      preLoaderRoute: typeof ApiPublicMetaCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/social-autopost': {
+      id: '/api/public/hooks/social-autopost'
+      path: '/api/public/hooks/social-autopost'
+      fullPath: '/api/public/hooks/social-autopost'
+      preLoaderRoute: typeof ApiPublicHooksSocialAutopostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -251,6 +312,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSitesRoute: typeof AuthenticatedSitesRoute
   AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
+  AuthenticatedSocialScheduleRoute: typeof AuthenticatedSocialScheduleRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -262,6 +324,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSitesRoute: AuthenticatedSitesRoute,
   AuthenticatedSocialRoute: AuthenticatedSocialRoute,
+  AuthenticatedSocialScheduleRoute: AuthenticatedSocialScheduleRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -271,6 +334,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicHooksSocialAutopostRoute: ApiPublicHooksSocialAutopostRoute,
+  ApiPublicMetaCallbackRoute: ApiPublicMetaCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

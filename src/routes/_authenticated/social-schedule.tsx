@@ -16,7 +16,7 @@ const input = "w-full rounded-lg bg-input/40 border border-border px-3 py-2.5 te
 
 function SchedulePage() {
   const qc = useQueryClient();
-  const search = useRouterState({ select: (s) => s.location.search }) as Record<string, string>;
+  const search = useRouterState({ select: (s) => s.location.search }) as unknown as Record<string, string>;
   const status = useQuery({ queryKey: ["social-status"], queryFn: () => getSocialStatus() });
 
   const authUrlFn = useServerFn(getMetaAuthUrl);
