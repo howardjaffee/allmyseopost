@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   addRelatedLinks,
   callContentModel,
+  generateFeaturedImage,
   normalizeArticleDraft,
   normalizePlanDraft,
   normalizeQualityScore,
@@ -14,6 +15,7 @@ import {
   type ContentPlanDraft,
   type QualityScore,
 } from "./ai-content.server";
+import { publishPostToWordPress, uploadImageToWordPress } from "./wordpress.server";
 
 export const generateArticle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
