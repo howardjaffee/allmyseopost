@@ -18,6 +18,15 @@ export async function generateSocialImage(prompt: string, platform: "instagram" 
 }
 
 async function generateImage(fullPrompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  return (
+    (await tryLovableImage(fullPrompt)) ??
+    (await tryGeminiImage(fullPrompt)) ??
+    (await tryStabilityImage(fullPrompt)) ??
+    (await tryFalImage(fullPrompt))
+  );
+}
+
+async function tryLovableImage(prompt: string) {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return null;
   try {
@@ -26,15 +35,83 @@ async function generateImage(fullPrompt: string): Promise<{ base64: string; mime
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: fullPrompt }],
+        messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
       }),
     });
     if (!res.ok) return null;
     const json = await res.json();
     const b64 = json?.data?.[0]?.b64_json;
-    if (!b64) return null;
-    return { base64: b64, mimeType: "image/png" };
+    return b64 ? { base64: b64 as string, mimeType: "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGeminiImage(prompt: string) {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const parts = json?.candidates?.[0]?.content?.parts ?? [];
+    const img = parts.find((p: any) => p?.inlineData?.data);
+    return img ? { base64: img.inlineData.data as string, mimeType: img.inlineData.mimeType ?? "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryStabilityImage(prompt: string) {
+  const key = process.env.STABILITY_API_KEY;
+  if (!key) return null;
+  try {
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("output_format", "png");
+    const res = await fetch("https://api.stability.ai/v2beta/stable-image/generate/core", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      body: form,
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.image ? { base64: json.image as string, mimeType: "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryFalImage(prompt: string) {
+  const key = process.env.FAL_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://fal.run/fal-ai/flux/schnell", {
+      method: "POST",
+      headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, num_images: 1, image_size: "landscape_16_9" }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const url = json?.images?.[0]?.url;
+    if (!url) return null;
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return null;
+    const buf = new Uint8Array(await imgRes.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < buf.length; i += 1) binary += String.fromCharCode(buf[i]);
+    return { base64: btoa(binary), mimeType: imgRes.headers.get("content-type") ?? "image/png" };
   } catch {
     return null;
   }
@@ -123,6 +200,19 @@ export type ContentPlanDraft = {
   items: Array<{ day: number; topic: string; primaryKeyword?: string; searchIntent?: string; cluster?: string }>;
 };
 
+// OpenAI-compatible fallback providers, tried in order after Lovable AI + Google.
+// Fast/cheap first so the tools stay responsive, stronger models last.
+type OpenAiCompatProvider = { name: string; envKey: string; url: string; model: string };
+
+const OPENAI_COMPAT_PROVIDERS: OpenAiCompatProvider[] = [
+  { name: "Groq", envKey: "GROQ_API_KEY", url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
+  { name: "OpenRouter", envKey: "OPENROUTER_API_KEY", url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemini-2.0-flash-001" },
+  { name: "DeepSeek", envKey: "DEEPSEEK_API_KEY", url: "https://api.deepseek.com/chat/completions", model: "deepseek-chat" },
+  { name: "NVIDIA", envKey: "NVIDIA_API_KEY", url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.3-70b-instruct" },
+  { name: "OpenAI", envKey: "OPENAI_API_KEY", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" },
+  { name: "AIMLAPI", envKey: "AIMLAPI_API_KEY", url: "https://api.aimlapi.com/v1/chat/completions", model: "gpt-4o-mini" },
+];
+
 export async function callContentModel(body: ChatBody) {
   const lovableKey = process.env.LOVABLE_API_KEY;
   const googleKey = process.env.GOOGLE_API_KEY;
@@ -137,9 +227,12 @@ export async function callContentModel(body: ChatBody) {
       });
       if (res.ok) {
         const json = await res.json();
-        return String(json.choices?.[0]?.message?.content ?? "");
+        const text = String(json.choices?.[0]?.message?.content ?? "");
+        if (text) return text;
+        errors.push("Lovable AI: empty response");
+      } else {
+        errors.push(await explainAiError("Lovable AI", res));
       }
-      errors.push(await explainAiError("Lovable AI", res));
     } catch (error) {
       errors.push(`Lovable AI: ${error instanceof Error ? error.message : "request failed"}`);
     }
@@ -155,19 +248,52 @@ export async function callContentModel(body: ChatBody) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { temperature: body.temperature ?? 0.45, responseMimeType: "application/json" },
+          generationConfig: {
+            temperature: body.temperature ?? 0.45,
+            ...(body.response_format ? { responseMimeType: "application/json" } : {}),
+          },
         }),
       });
       if (res.ok) {
         const json = await res.json();
-        return String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+        const text = String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+        if (text) return text;
+        errors.push("Google AI: empty response");
+      } else {
+        errors.push(await explainAiError("Google AI", res));
       }
-      errors.push(await explainAiError("Google AI", res));
     } catch (error) {
       errors.push(`Google AI: ${error instanceof Error ? error.message : "request failed"}`);
     }
   } else {
     errors.push("Google AI: missing key");
+  }
+
+  for (const provider of OPENAI_COMPAT_PROVIDERS) {
+    const key = process.env[provider.envKey];
+    if (!key) continue;
+    try {
+      const res = await fetch(provider.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: provider.model,
+          messages: body.messages,
+          temperature: body.temperature ?? 0.45,
+          ...(body.response_format ? { response_format: body.response_format } : {}),
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const text = String(json.choices?.[0]?.message?.content ?? "");
+        if (text) return text;
+        errors.push(`${provider.name}: empty response`);
+        continue;
+      }
+      errors.push(await explainAiError(provider.name, res));
+    } catch (error) {
+      errors.push(`${provider.name}: ${error instanceof Error ? error.message : "request failed"}`);
+    }
   }
 
   throw new Error(`AI generation failed. ${errors.join(" | ")}`);
