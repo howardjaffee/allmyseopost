@@ -123,6 +123,19 @@ export type ContentPlanDraft = {
   items: Array<{ day: number; topic: string; primaryKeyword?: string; searchIntent?: string; cluster?: string }>;
 };
 
+// OpenAI-compatible fallback providers, tried in order after Lovable AI + Google.
+// Fast/cheap first so the tools stay responsive, stronger models last.
+type OpenAiCompatProvider = { name: string; envKey: string; url: string; model: string };
+
+const OPENAI_COMPAT_PROVIDERS: OpenAiCompatProvider[] = [
+  { name: "Groq", envKey: "GROQ_API_KEY", url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
+  { name: "OpenRouter", envKey: "OPENROUTER_API_KEY", url: "https://openrouter.ai/api/v1/chat/completions", model: "google/gemini-2.0-flash-001" },
+  { name: "DeepSeek", envKey: "DEEPSEEK_API_KEY", url: "https://api.deepseek.com/chat/completions", model: "deepseek-chat" },
+  { name: "NVIDIA", envKey: "NVIDIA_API_KEY", url: "https://integrate.api.nvidia.com/v1/chat/completions", model: "meta/llama-3.3-70b-instruct" },
+  { name: "OpenAI", envKey: "OPENAI_API_KEY", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" },
+  { name: "AIMLAPI", envKey: "AIMLAPI_API_KEY", url: "https://api.aimlapi.com/v1/chat/completions", model: "gpt-4o-mini" },
+];
+
 export async function callContentModel(body: ChatBody) {
   const lovableKey = process.env.LOVABLE_API_KEY;
   const googleKey = process.env.GOOGLE_API_KEY;
@@ -137,9 +150,12 @@ export async function callContentModel(body: ChatBody) {
       });
       if (res.ok) {
         const json = await res.json();
-        return String(json.choices?.[0]?.message?.content ?? "");
+        const text = String(json.choices?.[0]?.message?.content ?? "");
+        if (text) return text;
+        errors.push("Lovable AI: empty response");
+      } else {
+        errors.push(await explainAiError("Lovable AI", res));
       }
-      errors.push(await explainAiError("Lovable AI", res));
     } catch (error) {
       errors.push(`Lovable AI: ${error instanceof Error ? error.message : "request failed"}`);
     }
@@ -155,19 +171,52 @@ export async function callContentModel(body: ChatBody) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { temperature: body.temperature ?? 0.45, responseMimeType: "application/json" },
+          generationConfig: {
+            temperature: body.temperature ?? 0.45,
+            ...(body.response_format ? { responseMimeType: "application/json" } : {}),
+          },
         }),
       });
       if (res.ok) {
         const json = await res.json();
-        return String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+        const text = String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
+        if (text) return text;
+        errors.push("Google AI: empty response");
+      } else {
+        errors.push(await explainAiError("Google AI", res));
       }
-      errors.push(await explainAiError("Google AI", res));
     } catch (error) {
       errors.push(`Google AI: ${error instanceof Error ? error.message : "request failed"}`);
     }
   } else {
     errors.push("Google AI: missing key");
+  }
+
+  for (const provider of OPENAI_COMPAT_PROVIDERS) {
+    const key = process.env[provider.envKey];
+    if (!key) continue;
+    try {
+      const res = await fetch(provider.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: provider.model,
+          messages: body.messages,
+          temperature: body.temperature ?? 0.45,
+          ...(body.response_format ? { response_format: body.response_format } : {}),
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const text = String(json.choices?.[0]?.message?.content ?? "");
+        if (text) return text;
+        errors.push(`${provider.name}: empty response`);
+        continue;
+      }
+      errors.push(await explainAiError(provider.name, res));
+    } catch (error) {
+      errors.push(`${provider.name}: ${error instanceof Error ? error.message : "request failed"}`);
+    }
   }
 
   throw new Error(`AI generation failed. ${errors.join(" | ")}`);
