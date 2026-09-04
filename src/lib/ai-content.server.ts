@@ -18,6 +18,15 @@ export async function generateSocialImage(prompt: string, platform: "instagram" 
 }
 
 async function generateImage(fullPrompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  return (
+    (await tryLovableImage(fullPrompt)) ??
+    (await tryGeminiImage(fullPrompt)) ??
+    (await tryStabilityImage(fullPrompt)) ??
+    (await tryFalImage(fullPrompt))
+  );
+}
+
+async function tryLovableImage(prompt: string) {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) return null;
   try {
@@ -26,15 +35,83 @@ async function generateImage(fullPrompt: string): Promise<{ base64: string; mime
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: fullPrompt }],
+        messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
       }),
     });
     if (!res.ok) return null;
     const json = await res.json();
     const b64 = json?.data?.[0]?.b64_json;
-    if (!b64) return null;
-    return { base64: b64, mimeType: "image/png" };
+    return b64 ? { base64: b64 as string, mimeType: "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGeminiImage(prompt: string) {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const parts = json?.candidates?.[0]?.content?.parts ?? [];
+    const img = parts.find((p: any) => p?.inlineData?.data);
+    return img ? { base64: img.inlineData.data as string, mimeType: img.inlineData.mimeType ?? "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryStabilityImage(prompt: string) {
+  const key = process.env.STABILITY_API_KEY;
+  if (!key) return null;
+  try {
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("output_format", "png");
+    const res = await fetch("https://api.stability.ai/v2beta/stable-image/generate/core", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      body: form,
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.image ? { base64: json.image as string, mimeType: "image/png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryFalImage(prompt: string) {
+  const key = process.env.FAL_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://fal.run/fal-ai/flux/schnell", {
+      method: "POST",
+      headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, num_images: 1, image_size: "landscape_16_9" }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const url = json?.images?.[0]?.url;
+    if (!url) return null;
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return null;
+    const buf = new Uint8Array(await imgRes.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < buf.length; i += 1) binary += String.fromCharCode(buf[i]);
+    return { base64: btoa(binary), mimeType: imgRes.headers.get("content-type") ?? "image/png" };
   } catch {
     return null;
   }
