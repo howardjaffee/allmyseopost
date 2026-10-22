@@ -6,6 +6,8 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Seowidpnkj — AI Content & SEO Automation Platform" },
       { name: "description", content: "Generate SEO-optimized blog content, score quality with AI, and auto-publish to WordPress on autopilot." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { property: "og:title", content: "Seowidpnkj — AI Content & SEO Automation" },
       { property: "og:description", content: "From keyword to published WordPress post — fully automated, EEAT-ready content." },
     ],

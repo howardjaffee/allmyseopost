@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/sites")({
-  head: () => ({ meta: [{ title: "Sites — Seowidpnkj" }] }),
+  head: () => pageHead("Sites", "Manage connected WordPress sites for article publishing."),
   component: SitesPage,
 });
 

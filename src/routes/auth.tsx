@@ -13,6 +13,10 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Seowidpnkj" },
+      { property: "og:title", content: "Sign in — Seowidpnkj" },
+      { property: "og:description", content: "Access your Seowidpnkj content automation workspace." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "description", content: "Sign in or create your Seowidpnkj account to automate content & SEO." },
     ],
   }),

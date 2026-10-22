@@ -1,11 +1,12 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Calendar, Globe2, Gauge, Wand2, Plus, ArrowRight } from "lucide-react";
+import { FileText, Calendar, Globe2, Gauge, Wand2, Plus, ArrowRight, Search } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Seowidpnkj" }] }),
+  head: () => pageHead("Dashboard", "Review your articles, content plans and connected WordPress sites."),
   component: Dashboard,
 });
 
@@ -57,6 +58,7 @@ function Dashboard() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
+          <QuickAction to="/keywords" icon={Search} title="Research keywords" body="Compare search volume, ad competition and ranking difficulty." />
           <QuickAction to="/generator" icon={Wand2} title="Generate an article" body="Spin up an EEAT-optimized post with auto quality scoring." />
           <QuickAction to="/calendar" icon={Calendar} title="Plan content calendar" body="7/30/60/90-day strategies with topics & internal linking." />
           <QuickAction to="/sites" icon={Globe2} title="Connect a WordPress site" body="Add your site & WP application password to publish." />

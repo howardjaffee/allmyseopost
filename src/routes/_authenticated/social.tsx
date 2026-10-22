@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,7 +9,7 @@ import { generateSocialPost } from "@/lib/content.functions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/social")({
-  head: () => ({ meta: [{ title: "Social Post Generator — Seowidpnkj" }] }),
+  head: () => pageHead("Social Post Generator", "Create Instagram and Facebook captions, hashtags and matching images."),
   component: SocialPage,
 });
 

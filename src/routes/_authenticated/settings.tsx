@@ -1,8 +1,9 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Settings — Seowidpnkj" }] }),
+  head: () => pageHead("Settings", "Manage your Seowidpnkj account and content workspace."),
   component: SettingsPage,
 });
 

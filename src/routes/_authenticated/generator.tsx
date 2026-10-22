@@ -1,28 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Wand2, Sparkles, Rocket } from "lucide-react";
+import { Loader2, Wand2, Sparkles, Rocket, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateArticle } from "@/lib/content.functions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { generatorKeywordSearch } from "@/lib/keyword-metrics";
+import { Button } from "@/components/ui/button";
+import { pageHead } from "@/lib/page-head";
 
 export const Route = createFileRoute("/_authenticated/generator")({
-  head: () => ({ meta: [{ title: "Article Generator — Seowidpnkj" }] }),
+  validateSearch: generatorKeywordSearch,
+  head: () => pageHead("Article Generator", "Create structured SEO articles with images, quality scoring and WordPress publishing."),
   component: GeneratorPage,
 });
 
 function GeneratorPage() {
+  const search = Route.useSearch();
   const qc = useQueryClient();
   const gen = useServerFn(generateArticle);
   const [lastRun, setLastRun] = useState<Awaited<ReturnType<typeof generateArticle>> | null>(null);
   const [form, setForm] = useState({
-    primaryKeyword: "",
+    primaryKeyword: search.primaryKeyword ?? "",
     secondaryKeywords: "",
     tone: "professional",
     wordCount: 1500,
-    targetCountry: "United States",
+    targetCountry: search.targetCountry ?? "United States",
     audience: "general readers",
     searchIntent: "informational",
     siteId: null as string | null,
@@ -31,6 +36,10 @@ function GeneratorPage() {
     includeToc: true,
     inlineImageCount: 2,
   });
+
+  useEffect(() => {
+    if (search.primaryKeyword) setForm((previous) => ({ ...previous, primaryKeyword: search.primaryKeyword ?? previous.primaryKeyword, targetCountry: search.targetCountry ?? previous.targetCountry }));
+  }, [search.primaryKeyword, search.targetCountry]);
 
   const sites = useQuery({
     queryKey: ["generator-sites"],
@@ -74,6 +83,7 @@ function GeneratorPage() {
           <Field label="Primary keyword *">
             <input required value={form.primaryKeyword} onChange={(e) => setForm({ ...form, primaryKeyword: e.target.value })} placeholder="best hotels in dalhousie" className={input} />
           </Field>
+          <Button asChild variant="link" size="sm"><Link to="/keywords">Research keywords first <ArrowRight className="size-4" /></Link></Button>
           <Field label="Secondary keywords (comma-separated)">
             <input value={form.secondaryKeywords} onChange={(e) => setForm({ ...form, secondaryKeywords: e.target.value })} placeholder="luxury hotels, budget stays, hill station resorts" className={input} />
           </Field>

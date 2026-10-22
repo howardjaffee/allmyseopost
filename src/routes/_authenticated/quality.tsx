@@ -1,10 +1,11 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/quality")({
-  head: () => ({ meta: [{ title: "Quality Scores — Seowidpnkj" }] }),
+  head: () => pageHead("Quality Scores", "Review article quality scores for SEO, readability and content structure."),
   component: QualityPage,
 });
 
