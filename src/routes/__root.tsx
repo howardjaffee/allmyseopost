@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -31,7 +32,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -69,8 +70,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Seowidpnkj — AI Content & SEO Automation Platform" },
       { name: "twitter:description", content: "Plan, generate, score, and publish SEO-optimized blog content across multiple WordPress sites — fully automated, powered by AI." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fb3d3ff6-1a13-44d0-94d6-eaf495f6086d/id-preview-2aa4ca54--41b59904-f3d9-4797-a731-8696ba62d2b4.lovable.app-1780566641145.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fb3d3ff6-1a13-44d0-94d6-eaf495f6086d/id-preview-2aa4ca54--41b59904-f3d9-4797-a731-8696ba62d2b4.lovable.app-1780566641145.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
