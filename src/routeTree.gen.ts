@@ -17,6 +17,7 @@ import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedQualityRouteImport } from './routes/_authenticated/quality'
+import { Route as AuthenticatedKeywordsRouteImport } from './routes/_authenticated/keywords'
 import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
 import { Route as AuthenticatedGeneratorRouteImport } from './routes/_authenticated/generator'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -64,6 +65,11 @@ const AuthenticatedQualityRoute = AuthenticatedQualityRouteImport.update({
   path: '/quality',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedKeywordsRoute = AuthenticatedKeywordsRouteImport.update({
+  id: '/keywords',
+  path: '/keywords',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedHistoryRoute = AuthenticatedHistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/generator': typeof AuthenticatedGeneratorRoute
   '/history': typeof AuthenticatedHistoryRoute
+  '/keywords': typeof AuthenticatedKeywordsRoute
   '/quality': typeof AuthenticatedQualityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sites': typeof AuthenticatedSitesRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/generator': typeof AuthenticatedGeneratorRoute
   '/history': typeof AuthenticatedHistoryRoute
+  '/keywords': typeof AuthenticatedKeywordsRoute
   '/quality': typeof AuthenticatedQualityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sites': typeof AuthenticatedSitesRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/generator': typeof AuthenticatedGeneratorRoute
   '/_authenticated/history': typeof AuthenticatedHistoryRoute
+  '/_authenticated/keywords': typeof AuthenticatedKeywordsRoute
   '/_authenticated/quality': typeof AuthenticatedQualityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/sites': typeof AuthenticatedSitesRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/generator'
     | '/history'
+    | '/keywords'
     | '/quality'
     | '/settings'
     | '/sites'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/generator'
     | '/history'
+    | '/keywords'
     | '/quality'
     | '/settings'
     | '/sites'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/generator'
     | '/_authenticated/history'
+    | '/_authenticated/keywords'
     | '/_authenticated/quality'
     | '/_authenticated/settings'
     | '/_authenticated/sites'
@@ -258,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedQualityRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/keywords': {
+      id: '/_authenticated/keywords'
+      path: '/keywords'
+      fullPath: '/keywords'
+      preLoaderRoute: typeof AuthenticatedKeywordsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/history': {
       id: '/_authenticated/history'
       path: '/history'
@@ -308,6 +327,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedGeneratorRoute: typeof AuthenticatedGeneratorRoute
   AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
+  AuthenticatedKeywordsRoute: typeof AuthenticatedKeywordsRoute
   AuthenticatedQualityRoute: typeof AuthenticatedQualityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSitesRoute: typeof AuthenticatedSitesRoute
@@ -320,6 +340,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedGeneratorRoute: AuthenticatedGeneratorRoute,
   AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
+  AuthenticatedKeywordsRoute: AuthenticatedKeywordsRoute,
   AuthenticatedQualityRoute: AuthenticatedQualityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSitesRoute: AuthenticatedSitesRoute,

@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,7 +10,7 @@ import { FileText, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/history")({
-  head: () => ({ meta: [{ title: "Content History — Seowidpnkj" }] }),
+  head: () => pageHead("Content History", "Review generated articles and publish drafts to your WordPress sites."),
   component: HistoryPage,
 });
 

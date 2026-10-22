@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,7 +10,7 @@ import { generateContentPlan } from "@/lib/content.functions";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
-  head: () => ({ meta: [{ title: "Content Calendar — Seowidpnkj" }] }),
+  head: () => pageHead("Content Calendar", "Plan SEO article topics and publishing calendars for your audience."),
   component: CalendarPage,
 });
 

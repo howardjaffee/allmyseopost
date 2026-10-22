@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,7 +9,7 @@ import { getMetaAuthUrl, getSocialStatus, saveSocialSchedule, disconnectMeta, ru
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/social-schedule")({
-  head: () => ({ meta: [{ title: "Autopost Scheduler — Seowidpnkj" }] }),
+  head: () => pageHead("Autopost Scheduler", "Schedule daily Instagram and Facebook posts with generated images."),
   component: SchedulePage,
 });
 

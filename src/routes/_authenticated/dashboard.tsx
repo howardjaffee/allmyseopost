@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -5,7 +6,7 @@ import { FileText, Calendar, Globe2, Gauge, Wand2, Plus, ArrowRight, Search } fr
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Seowidpnkj" }] }),
+  head: () => pageHead("Dashboard", "Review your articles, content plans and connected WordPress sites."),
   component: Dashboard,
 });
 
