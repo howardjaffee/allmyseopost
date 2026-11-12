@@ -7,4 +7,4 @@
 # Meta daily autoposting
 - [x] Securely configure the Facebook App ID and Secret.
 - [x] Replace public-key timer authentication with managed authentication and verify the saved daily timer.
-- [ ] Verify Meta connection and a real Facebook and Instagram publish — blocked until requester signs into the preview, connects Meta, and enables a schedule; published callback must use the configured Meta redirect URL.
+- [ ] Enable the requester's daily Meta schedule and verify a real Instagram post from Social Posts — blocked: requester has no matching app account, no saved daily schedules exist, and Social Posts currently has no publish action. Sign-in and Meta connection are required before publishing can be tested.
