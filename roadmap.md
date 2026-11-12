@@ -5,6 +5,6 @@
 - [ ] Verify live research and article handoff while signed in — blocked by declined Semrush reauthorization and unavailable requester app account.
 
 # Meta daily autoposting
-- [ ] Securely configure the Facebook App ID and Secret.
-- [ ] Verify Meta connection and secure daily scheduling.
-- [ ] Verify a real Facebook and Instagram publish — requires connected accounts and publication approval.
+- [x] Securely configure the Facebook App ID and Secret.
+- [x] Replace public-key timer authentication with managed authentication and verify the saved daily timer.
+- [ ] Verify Meta connection and a real Facebook and Instagram publish — blocked until requester signs into the preview, connects Meta, and enables a schedule; published callback must use the configured Meta redirect URL.
