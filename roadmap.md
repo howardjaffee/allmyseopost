@@ -3,3 +3,8 @@
 - [x] Add dashboard access, sorting/filtering and selected-keyword handoff to article generation.
 - [x] Test metric parsing and handoff rules; verify signed-out protection; apply package security update.
 - [ ] Verify live research and article handoff while signed in — blocked by declined Semrush reauthorization and unavailable requester app account.
+
+# Meta daily autoposting
+- [ ] Securely configure the Facebook App ID and Secret.
+- [ ] Verify Meta connection and secure daily scheduling.
+- [ ] Verify a real Facebook and Instagram publish — requires connected accounts and publication approval.
