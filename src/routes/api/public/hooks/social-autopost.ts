@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 // Cron endpoint: pg_cron hits this every 5 minutes. For each enabled schedule
 // where post_time_utc is within the last 5 UTC minutes AND we haven't already
@@ -7,11 +8,8 @@ export const Route = createFileRoute("/api/public/hooks/social-autopost")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const auth = request.headers.get("apikey") ?? request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        if (!auth || !expected || auth !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const rejected = await authenticateCronRequest(request);
+        if (rejected) return rejected;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { runAutopostForUser } = await import("@/lib/social-autopost.server");
 
@@ -44,7 +42,7 @@ export const Route = createFileRoute("/api/public/hooks/social-autopost")({
             results.push({ user_id: s.user_id, ok: false, error: e instanceof Error ? e.message : String(e) });
           }
         }
-        return Response.json({ ran: results.length, results });
+        return Response.json({ ran: results.length, succeeded: results.filter((r) => r.ok).length });
       },
     },
   },
